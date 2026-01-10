@@ -1,0 +1,237 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// User Management
+model User {
+  id          Int              @id @default(autoincrement())
+  username    String           @unique
+  password    String
+  role        String           @default("VIEWER") // ADMIN, VIEWER
+  isActive    Boolean          @default(true)
+  createdAt   DateTime         @default(now())
+  permissions UserPermission[]
+}
+
+model UserPermission {
+  id       Int     @id @default(autoincrement())
+  userId   Int
+  user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  module   String  // "keys", "certificates", "workhours"
+  canView  Boolean @default(false)
+  canWrite Boolean @default(false)
+  
+  @@unique([userId, module])
+}
+
+// Audit Log - tracks all changes
+model AuditLog {
+  id          Int      @id @default(autoincrement())
+  timestamp   DateTime @default(now())
+  
+  userId      Int?     // Who made the change (null if system)
+  username    String   // Username at time of action
+  
+  action      String   // CREATE, UPDATE, DELETE
+  tableName   String   // Which table was affected
+  recordId    Int?     // ID of the affected record
+  
+  oldValue    String?  // JSON string of old values (for UPDATE/DELETE)
+  newValue    String?  // JSON string of new values (for CREATE/UPDATE)
+  
+  description String?  // Human-readable description of change
+}
+
+// Keys Module
+// Dictionaries
+model LocationType {
+  id        Int        @id @default(autoincrement())
+  name      String     @unique // Klub, Partner, Kladionica
+  isActive  Boolean    @default(true)
+  locations Location[]
+}
+
+model CabinetPosition {
+  id          Int             @id @default(autoincrement())
+  name        String          @unique // Pozicija 1, Ladica...
+  isActive    Boolean         @default(true)
+  assignments KeyAssignment[]
+}
+
+model KeyType {
+  id          Int             @id @default(autoincrement())
+  name        String          @unique // Bankomat, Operater...
+  isActive    Boolean         @default(true)
+  assignments KeyAssignment[]
+}
+
+// Entities
+model Location {
+  id             Int             @id @default(autoincrement())
+  name           String
+  status         String          @default("OPEN") // OPEN, CLOSED
+  locationTypeId Int
+  locationType   LocationType    @relation(fields: [locationTypeId], references: [id])
+  assignments    KeyAssignment[]
+}
+
+model Key {
+  id          Int             @id @default(autoincrement())
+  keyCode     String          @unique
+  silverCount Int             @default(0)
+  goldCount   Int             @default(0)
+  brokenSilver Int            @default(0)
+  brokenGold  Int             @default(0)
+  assignments KeyAssignment[]
+}
+
+// Linker
+model KeyAssignment {
+  id                Int             @id @default(autoincrement())
+  
+  keyId             Int
+  key               Key             @relation(fields: [keyId], references: [id])
+  
+  locationId        Int
+  location          Location        @relation(fields: [locationId], references: [id])
+  
+  cabinetPositionId Int
+  cabinetPosition   CabinetPosition @relation(fields: [cabinetPositionId], references: [id])
+  
+  keyTypeId         Int
+  keyType           KeyType         @relation(fields: [keyTypeId], references: [id])
+  
+  createdAt         DateTime        @default(now())
+}
+
+// Certificates Module
+// Dictionaries (Definitions)
+// Dictionaries (Definitions)
+model CertificateDefinition {
+    id           Int      @id @default(autoincrement())
+    name         String   @unique // NazivCertifikata (e.g. Class Number)
+    recognizedHr Boolean  @default(true) // PriznatHR
+    forSlovenia  Boolean  @default(false) // ZaSloveniju
+    filePath     String?  // PutanjaDatoteke
+    isActive     Boolean  @default(true)
+
+    // Direct Relations (1 Certificate = 1 Game + 1 Board)
+    gameId       Int
+    game         GameDefinition @relation(fields: [gameId], references: [id])
+    
+    boardId      Int
+    board        BoardDefinition @relation(fields: [boardId], references: [id])
+
+    // Many Cabinets
+    cabinets     CertificateCabinet[]
+}
+
+model BoardDefinition {
+    id        Int      @id @default(autoincrement())
+    name      String   @unique // NazivPloce
+    biosName  String?  // NazivBiosa
+    isActive  Boolean  @default(true)
+    
+    certificates CertificateDefinition[]
+}
+
+model CabinetDefinition {
+    id          Int      @id @default(autoincrement())
+    name        String   @unique // NazivKucista
+    drawerType  String?  // VrstaLadice
+    isActive    Boolean  @default(true)
+    
+    certificates CertificateCabinet[]
+}
+
+model GameDefinition {
+    id        Int      @id @default(autoincrement())
+    name      String   // NazivIgre
+    version   String?  // VerzijaIgre
+    renoId    String?  // RenoID
+    isActive  Boolean  @default(true)
+    
+    jackpots     JackpotConfig[]
+    certificates CertificateDefinition[]
+
+    @@unique([name, version]) // Prevent duplicate game versions
+}
+
+model ControllerDefinition {
+    id        Int      @id @default(autoincrement())
+    name      String   // NazivKontrolera
+    version   String?  // VerzijaKontrolera
+    isActive  Boolean  @default(true)
+
+    jackpots  JackpotConfig[]
+    @@unique([name, version])
+}
+
+// Configuration
+model JackpotConfig {
+    id                Int            @id @default(autoincrement())
+    
+    gameId            Int
+    game              GameDefinition @relation(fields: [gameId], references: [id], onDelete: Cascade)
+    
+    controllerId      Int
+    controller        ControllerDefinition @relation(fields: [controllerId], references: [id])
+    
+    initialGrand      Decimal?       // PocetniGrand
+    initialMajor      Decimal?       // PocetniMajor
+    minBet            Decimal?       // MinBet
+    maxBet            Decimal?       // MaxBet
+    isActive          Boolean        @default(true)
+}
+
+// Many-to-Many Linker for Certificate <-> Cabinet
+model CertificateCabinet {
+    id            Int      @id @default(autoincrement())
+    
+    certificateId Int
+    certificate   CertificateDefinition @relation(fields: [certificateId], references: [id], onDelete: Cascade)
+    
+    cabinetId     Int
+    cabinet       CabinetDefinition     @relation(fields: [cabinetId], references: [id])
+
+    @@unique([certificateId, cabinetId])
+}
+
+// Working Hours Module
+model Technician {
+    id        Int      @id @default(autoincrement())
+    firstName String
+    lastName  String
+    isActive  Boolean  @default(true)
+    
+    initialHours  InitialHours?
+    workLogs      WorkLog[]
+}
+
+model InitialHours {
+    id           Int        @id @default(autoincrement())
+    technicianId Int        @unique
+    technician   Technician @relation(fields: [technicianId], references: [id], onDelete: Cascade)
+    hours        Decimal    @default(0) // Starting balance in hours
+}
+
+model WorkLog {
+    id           Int        @id @default(autoincrement())
+    technicianId Int
+    technician   Technician @relation(fields: [technicianId], references: [id], onDelete: Cascade)
+    date         DateTime   // Date of work
+    startTime    String     // HH:MM format
+    endTime      String     // HH:MM format
+    notes        String?
+    
+    // Overtime is calculated on the fly: (endTime - startTime) - 8 hours
+}

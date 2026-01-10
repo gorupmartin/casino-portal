@@ -1,0 +1,52 @@
+import { NextResponse } from "next/server";
+import prisma from "@/lib/prisma";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+
+export async function GET(request: Request) {
+    const { searchParams } = new URL(request.url);
+    const activeOnly = searchParams.get("active") === "true";
+
+    const types = await prisma.keyType.findMany({
+        where: activeOnly ? { isActive: true } : {},
+        orderBy: { name: 'asc' }
+    });
+    return NextResponse.json(types);
+}
+
+export async function POST(request: Request) {
+    const session = await getServerSession(authOptions);
+    // @ts-ignore
+    if (!session || session.user?.role !== "ADMIN") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    try {
+        const { name } = await request.json();
+        const type = await prisma.keyType.create({ data: { name } });
+        return NextResponse.json(type);
+    } catch (error: any) {
+        console.error("Error creating key type:", error);
+        return NextResponse.json({ error: error.message || "Failed to create item" }, { status: 500 });
+    }
+}
+
+export async function PUT(request: Request) {
+    const session = await getServerSession(authOptions);
+    // @ts-ignore
+    if (!session || session.user?.role !== "ADMIN") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const { id, isActive } = await request.json();
+
+    // Validation
+    if (isActive === false) {
+        const usageCount = await prisma.keyAssignment.count({ where: { keyTypeId: id } });
+        if (usageCount > 0) {
+            return NextResponse.json({ error: "Cannot block: Key Type is in use." }, { status: 400 });
+        }
+    }
+
+    const updated = await prisma.keyType.update({
+        where: { id },
+        data: { isActive }
+    });
+    return NextResponse.json(updated);
+}

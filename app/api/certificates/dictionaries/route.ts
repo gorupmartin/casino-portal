@@ -118,24 +118,34 @@ export async function PUT(request: Request) {
     if (!model) return NextResponse.json({ error: "Invalid type" }, { status: 400 });
 
     try {
-        // Validation: If blocking, check usage in CertifiedCombination
+        // Validation: If blocking, check usage in CertificateCabinet
         if (isActive === false) {
             let whereClause: any = {};
 
             if (type === "certificate") whereClause = { certificateId: Number(id) };
-            else if (type === "board") whereClause = { boardId: Number(id) };
             else if (type === "cabinet") whereClause = { cabinetId: Number(id) };
-            else if (type === "game") whereClause = { gameId: Number(id) };
 
             if (type === "controller") {
                 const usageCount = await prisma.jackpotConfig.count({ where: { controllerId: Number(id) } });
                 if (usageCount > 0) {
                     return NextResponse.json({ error: `Cannot block item because it is currently used in ${usageCount} jackpot configurations.` }, { status: 409 });
                 }
-            } else {
-                const usageCount = await prisma.certifiedCombination.count({ where: whereClause });
+            } else if (type === "board") {
+                // Boards are linked directly to CertificateDefinition
+                const usageCount = await prisma.certificateDefinition.count({ where: { boardId: Number(id) } });
                 if (usageCount > 0) {
-                    return NextResponse.json({ error: `Cannot block item because it is currently used in ${usageCount} certified combinations.` }, { status: 409 });
+                    return NextResponse.json({ error: `Cannot block item because it is currently used in ${usageCount} certificates.` }, { status: 409 });
+                }
+            } else if (type === "game") {
+                // Games are linked directly to CertificateDefinition
+                const usageCount = await prisma.certificateDefinition.count({ where: { gameId: Number(id) } });
+                if (usageCount > 0) {
+                    return NextResponse.json({ error: `Cannot block item because it is currently used in ${usageCount} certificates.` }, { status: 409 });
+                }
+            } else if (type === "certificate" || type === "cabinet") {
+                const usageCount = await prisma.certificateCabinet.count({ where: whereClause });
+                if (usageCount > 0) {
+                    return NextResponse.json({ error: `Cannot block item because it is currently used in ${usageCount} certificate-cabinet links.` }, { status: 409 });
                 }
             }
         }

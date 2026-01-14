@@ -12,16 +12,17 @@ export async function GET(request: Request) {
         const keys = await prisma.key.findMany({
             where: search
                 ? {
-                    OR: [
-                        { keyCode: { contains: search } },
-                        { location: { name: { contains: search } } },
-                        { keyType: { name: { contains: search } } },
-                    ],
+                    keyCode: { contains: search }
                 }
                 : {},
             include: {
-                location: true,
-                keyType: true,
+                assignments: {
+                    include: {
+                        location: true,
+                        keyType: true,
+                        cabinetPosition: true
+                    }
+                }
             },
             orderBy: {
                 id: "desc",
@@ -43,17 +44,15 @@ export async function POST(request: Request) {
 
     try {
         const body = await request.json();
-        const { keyCode, silverCount, goldCount, brokenCount, position, locationId, keyTypeId } = body;
+        const { keyCode, silverCount, goldCount, brokenSilver, brokenGold } = body;
 
         const newKey = await prisma.key.create({
             data: {
                 keyCode,
-                silverCount: parseInt(silverCount),
-                goldCount: parseInt(goldCount),
-                brokenCount: parseInt(brokenCount || 0),
-                position,
-                locationId: parseInt(locationId),
-                keyTypeId: keyTypeId ? parseInt(keyTypeId) : null,
+                silverCount: parseInt(silverCount) || 0,
+                goldCount: parseInt(goldCount) || 0,
+                brokenSilver: parseInt(brokenSilver) || 0,
+                brokenGold: parseInt(brokenGold) || 0,
             },
         });
 
@@ -67,7 +66,7 @@ export async function POST(request: Request) {
             action: "CREATE",
             tableName: "Key",
             recordId: newKey.id,
-            newValue: { keyCode, silverCount, goldCount, brokenCount, position },
+            newValue: { keyCode, silverCount, goldCount, brokenSilver, brokenGold },
             description: `Created key "${keyCode}"`
         });
 

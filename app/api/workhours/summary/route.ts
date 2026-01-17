@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 
+// Prevent caching in production
+export const dynamic = 'force-dynamic';
+
 // Helper: Calculate hours worked from start/end time
 function calculateHoursWorked(startTime: string, endTime: string): number {
     const [startH, startM] = startTime.split(':').map(Number);

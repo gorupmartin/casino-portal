@@ -4,6 +4,9 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { createAuditLog } from "@/lib/audit";
 
+// Prevent caching in production
+export const dynamic = 'force-dynamic';
+
 // GET: Fetch work logs with optional filters
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);

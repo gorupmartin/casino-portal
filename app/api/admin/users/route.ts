@@ -5,6 +5,9 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { createAuditLog } from "@/lib/audit";
 
+// Prevent caching in production
+export const dynamic = 'force-dynamic';
+
 // GET - List all users with permissions
 export async function GET() {
     const session = await getServerSession(authOptions);

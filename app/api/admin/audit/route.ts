@@ -3,6 +3,9 @@ import prisma from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 
+// Prevent caching in production
+export const dynamic = 'force-dynamic';
+
 // GET - Get audit logs
 export async function GET(request: Request) {
     const session = await getServerSession(authOptions);

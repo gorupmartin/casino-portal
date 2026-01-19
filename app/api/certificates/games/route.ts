@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { createAuditLog } from "@/lib/audit";
+import { hasPermission } from "@/lib/permissions";
 
 // GET: Fetch all games with their jackpots and controllers
 export async function GET(request: Request) {
@@ -39,8 +40,12 @@ export async function GET(request: Request) {
 // POST: Create a new Game
 export async function POST(request: Request) {
     const session = await getServerSession(authOptions);
-    // @ts-ignore
-    if (!session || session.user?.role !== "ADMIN") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    // @ts-ignore - Check if user has write permission for certificates module
+    const userId = parseInt(session.user.id);
+    const canWrite = await hasPermission(userId, "certificates", "write");
+    if (!canWrite) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const data = await request.json();
 
@@ -77,8 +82,12 @@ export async function POST(request: Request) {
 // PUT: Update Game Details
 export async function PUT(request: Request) {
     const session = await getServerSession(authOptions);
-    // @ts-ignore
-    if (!session || session.user?.role !== "ADMIN") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    // @ts-ignore - Check if user has write permission for certificates module
+    const userId = parseInt(session.user.id);
+    const canWrite = await hasPermission(userId, "certificates", "write");
+    if (!canWrite) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const { id, jackpots, ...data } = await request.json();
 

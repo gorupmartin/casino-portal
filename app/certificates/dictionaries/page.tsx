@@ -6,8 +6,16 @@ import { useSession } from "next-auth/react";
 
 type DictionaryType = "board" | "cabinet" | "controller";
 
+interface Permission {
+    module: string;
+    canView: boolean;
+    canWrite: boolean;
+}
+
 export default function DictionaryManager() {
-    const { data: session } = useSession();
+    const { data: session, status } = useSession();
+    const [permissions, setPermissions] = useState<Permission[]>([]);
+
     // @ts-ignore
     const isAdmin = session?.user?.role === "ADMIN";
 
@@ -19,6 +27,33 @@ export default function DictionaryManager() {
     // Modal State
     const [modalOpen, setModalOpen] = useState(false);
     const [formData, setFormData] = useState<any>({});
+
+    // Fetch permissions for non-admin users
+    useEffect(() => {
+        const fetchPermissions = async () => {
+            if (status === "authenticated" && !isAdmin) {
+                try {
+                    const res = await fetch("/api/user/permissions");
+                    if (res.ok) {
+                        const data = await res.json();
+                        setPermissions(data.permissions || []);
+                    }
+                } catch (error) {
+                    console.error("Error fetching permissions:", error);
+                }
+            }
+        };
+
+        if (status !== "loading") {
+            fetchPermissions();
+        }
+    }, [status, isAdmin]);
+
+    const canWrite = () => {
+        if (isAdmin) return true;
+        const perm = permissions.find(p => p.module === "certificates");
+        return perm?.canWrite || false;
+    };
 
     const fetchItems = async () => {
         setLoading(true);
@@ -78,7 +113,20 @@ export default function DictionaryManager() {
         setModalOpen(true);
     };
 
-    if (!isAdmin) {
+    // Loading state
+    if (status === "loading") {
+        return (
+            <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+                <Navbar />
+                <div className="flex items-center justify-center h-96">
+                    <p className="text-gray-500">Loading...</p>
+                </div>
+            </div>
+        );
+    }
+
+    // Access check - allow users with canWrite permission
+    if (!canWrite()) {
         return (
             <div className="min-h-screen bg-gray-50 flex flex-col">
                 <Navbar />

@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { createAuditLog } from "@/lib/audit";
+import { hasPermission } from "@/lib/permissions";
 
 // Prevent caching in production
 export const dynamic = 'force-dynamic';
@@ -35,10 +36,12 @@ export async function GET(request: Request) {
 // POST: Set/update initial hours for a technician
 export async function POST(request: Request) {
     const session = await getServerSession(authOptions);
-    // @ts-ignore
-    if (!session || session.user?.role !== "ADMIN") {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    // @ts-ignore - Check if user has write permission for workhours module
+    const userId = parseInt(session.user.id);
+    const canWrite = await hasPermission(userId, "workhours", "write");
+    if (!canWrite) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     try {
         const { technicianId, hours } = await request.json();

@@ -5,11 +5,48 @@ import Navbar from "@/components/Navbar";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 
+interface Permission {
+    module: string;
+    canView: boolean;
+    canWrite: boolean;
+}
+
 export default function AssignmentsPage() {
-    const { data: session } = useSession();
+    const { data: session, status } = useSession();
     const [assignments, setAssignments] = useState<any[]>([]);
     const [search, setSearch] = useState("");
     const [loading, setLoading] = useState(true);
+    const [permissions, setPermissions] = useState<Permission[]>([]);
+
+    // @ts-ignore
+    const isAdmin = session?.user?.role === "ADMIN";
+
+    // Fetch permissions for non-admin users
+    useEffect(() => {
+        const fetchPermissions = async () => {
+            if (status === "authenticated" && !isAdmin) {
+                try {
+                    const res = await fetch("/api/user/permissions");
+                    if (res.ok) {
+                        const data = await res.json();
+                        setPermissions(data.permissions || []);
+                    }
+                } catch (error) {
+                    console.error("Error fetching permissions:", error);
+                }
+            }
+        };
+
+        if (status !== "loading") {
+            fetchPermissions();
+        }
+    }, [status, isAdmin]);
+
+    const canWrite = () => {
+        if (isAdmin) return true;
+        const perm = permissions.find(p => p.module === "keys");
+        return perm?.canWrite || false;
+    };
 
     const fetchAssignments = async (query = "") => {
         setLoading(true);
@@ -56,7 +93,7 @@ export default function AssignmentsPage() {
                             Overview of deployed keys.
                         </p>
                     </div>
-                    {(session?.user as any)?.role === "ADMIN" && (
+                    {canWrite() && (
                         <div className="mt-4 sm:ml-16 sm:mt-0 sm:flex-none">
                             <Link
                                 href="/keys/assign"
@@ -89,7 +126,7 @@ export default function AssignmentsPage() {
                                     <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">Counts (S/G)</th>
                                     <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">Purpose</th>
                                     <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">Position</th>
-                                    {(session?.user as any)?.role === "ADMIN" && (
+                                    {canWrite() && (
                                         <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">Actions</th>
                                     )}
                                 </tr>
@@ -113,7 +150,7 @@ export default function AssignmentsPage() {
                                         </td>
                                         <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500 dark:text-gray-300">{a.keyType.name}</td>
                                         <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500 dark:text-gray-300">{a.cabinetPosition.name}</td>
-                                        {(session?.user as any)?.role === "ADMIN" && (
+                                        {canWrite() && (
                                             <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500 dark:text-gray-300">
                                                 <button
                                                     onClick={() => handleDelete(a.id)}

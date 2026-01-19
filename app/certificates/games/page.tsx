@@ -4,8 +4,16 @@ import { useState, useEffect } from "react";
 import Navbar from "@/components/Navbar";
 import { useSession } from "next-auth/react";
 
+interface Permission {
+    module: string;
+    canView: boolean;
+    canWrite: boolean;
+}
+
 export default function GamesManager() {
-    const { data: session } = useSession();
+    const { data: session, status } = useSession();
+    const [permissions, setPermissions] = useState<Permission[]>([]);
+
     // @ts-ignore
     const isAdmin = session?.user?.role === "ADMIN";
 
@@ -17,9 +25,40 @@ export default function GamesManager() {
     // Game Modal
     const [gameModalOpen, setGameModalOpen] = useState(false);
     const [gameForm, setGameForm] = useState<any>({});
+    const [expandedGameId, setExpandedGameId] = useState<number | null>(null);
 
-    // Jackpot Modal (Nested inside Edit Game loop essentially, or separately)
-    // To keep it simple, we'll edit jackpots in the Edit Game modal directly.
+    // Fetch permissions for non-admin users
+    useEffect(() => {
+        const fetchPermissions = async () => {
+            if (status === "authenticated" && !isAdmin) {
+                try {
+                    const res = await fetch("/api/user/permissions");
+                    if (res.ok) {
+                        const data = await res.json();
+                        setPermissions(data.permissions || []);
+                    }
+                } catch (error) {
+                    console.error("Error fetching permissions:", error);
+                }
+            }
+        };
+
+        if (status !== "loading") {
+            fetchPermissions();
+        }
+    }, [status, isAdmin]);
+
+    const canWrite = () => {
+        if (isAdmin) return true;
+        const perm = permissions.find(p => p.module === "certificates");
+        return perm?.canWrite || false;
+    };
+
+    const canView = () => {
+        if (isAdmin) return true;
+        const perm = permissions.find(p => p.module === "certificates");
+        return perm?.canView || false;
+    };
 
     const fetchGames = async () => {
         setLoading(true);
@@ -100,11 +139,6 @@ export default function GamesManager() {
 
         if (res.ok) {
             setJackpotForm({});
-            // Refresh games to get updated list
-            fetchGames();
-            // Optimization: Update local state if possible, but fetch is safer
-            // We need to re-open the modal with updated data? No, if we fetchGames, the current games list updates.
-            // But we are binding the modal to `gameForm`. We need to update `gameForm` too or re-find the game.
             const newGames = await (await fetch(`/api/certificates/games?search=${search}`)).json();
             setGames(newGames);
             const updatedGame = newGames.find((g: any) => g.id === gameForm.id);
@@ -116,7 +150,6 @@ export default function GamesManager() {
     };
 
     const handleToggleJackpotStatus = async (id: number, currentStatus: boolean | undefined) => {
-        // Default undefined means active (true)
         const newStatus = currentStatus === false ? true : false;
 
         const res = await fetch("/api/certificates/games/jackpots", {
@@ -143,7 +176,28 @@ export default function GamesManager() {
         setGameModalOpen(true);
     };
 
-    if (!isAdmin) return <div className="p-8">Unauthorized</div>;
+    // Allow viewing for users with canView permission (read-only mode)
+    if (status === "loading") {
+        return (
+            <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+                <Navbar />
+                <div className="flex items-center justify-center h-96">
+                    <p className="text-gray-500">Loading...</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (!canView()) {
+        return (
+            <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+                <Navbar />
+                <div className="flex items-center justify-center h-96">
+                    <p className="text-gray-500">Access denied.</p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -151,12 +205,14 @@ export default function GamesManager() {
             <main className="mx-auto max-w-7xl px-4 py-8">
                 <div className="flex justify-between mb-6">
                     <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Games Manager</h1>
-                    <button
-                        onClick={() => { setGameForm({}); setGameModalOpen(true); }}
-                        className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"
-                    >
-                        Add New Game
-                    </button>
+                    {canWrite() && (
+                        <button
+                            onClick={() => { setGameForm({}); setGameModalOpen(true); }}
+                            className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"
+                        >
+                            Add New Game
+                        </button>
+                    )}
                 </div>
 
                 <div className="mb-4">
@@ -176,38 +232,91 @@ export default function GamesManager() {
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Game Name</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Details</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Jackpots Count</th>
-                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Actions</th>
+                                {canWrite() && (
+                                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Actions</th>
+                                )}
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                             {games.map((game) => (
-                                <tr key={game.id}>
-                                    <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">{game.name}</td>
-                                    <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
-                                        v{game.version} <br /> <span className="text-xs">Reno: {game.renoId}</span> <br />
-                                        {game.isActive === false && <span className="text-red-500 text-xs font-bold">BLOCKED</span>}
-                                    </td>
-                                    <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
-                                        {game.jackpots?.filter((j: any) => j.isActive !== false).length || 0}
-                                    </td>
-                                    <td className="px-6 py-4 text-right text-sm">
-                                        <button onClick={() => openEditGame(game)} className="text-indigo-600 hover:text-indigo-900 px-3">Edit / Jackpots</button>
-                                        <button
-                                            onClick={() => handleToggleStatus(game)}
-                                            className={`${game.isActive !== false ? 'text-red-600 hover:text-red-900' : 'text-green-600 hover:text-green-900'} px-3`}
-                                        >
-                                            {game.isActive !== false ? "Block" : "Unblock"}
-                                        </button>
-                                    </td>
-                                </tr>
+                                <>
+                                    <tr
+                                        key={game.id}
+                                        onClick={() => !canWrite() && setExpandedGameId(expandedGameId === game.id ? null : game.id)}
+                                        className={!canWrite() ? "cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-750" : ""}
+                                    >
+                                        <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">
+                                            {game.name}
+                                            {!canWrite() && game.jackpots?.length > 0 && (
+                                                <span className="ml-2 text-indigo-500">
+                                                    {expandedGameId === game.id ? "▼" : "▶"}
+                                                </span>
+                                            )}
+                                        </td>
+                                        <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
+                                            v{game.version} <br /> <span className="text-xs">Reno: {game.renoId}</span> <br />
+                                            {game.isActive === false && <span className="text-red-500 text-xs font-bold">BLOCKED</span>}
+                                        </td>
+                                        <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
+                                            {game.jackpots?.filter((j: any) => j.isActive !== false).length || 0}
+                                        </td>
+                                        {canWrite() && (
+                                            <td className="px-6 py-4 text-right text-sm">
+                                                <button onClick={() => openEditGame(game)} className="text-indigo-600 hover:text-indigo-900 px-3">Edit / Jackpots</button>
+                                                <button
+                                                    onClick={() => handleToggleStatus(game)}
+                                                    className={`${game.isActive !== false ? 'text-red-600 hover:text-red-900' : 'text-green-600 hover:text-green-900'} px-3`}
+                                                >
+                                                    {game.isActive !== false ? "Block" : "Unblock"}
+                                                </button>
+                                            </td>
+                                        )}
+                                    </tr>
+                                    {/* Expandable jackpot row for read-only users */}
+                                    {!canWrite() && expandedGameId === game.id && (
+                                        <tr key={`${game.id}-jackpots`}>
+                                            <td colSpan={4} className="px-6 py-4 bg-gray-700">
+                                                <div className="pl-4 border-l-4 border-indigo-500">
+                                                    <h4 className="font-medium text-white mb-2">Jackpot Parameters</h4>
+                                                    {game.jackpots && game.jackpots.length > 0 ? (
+                                                        <table className="min-w-full text-sm">
+                                                            <thead>
+                                                                <tr className="text-left text-gray-300">
+                                                                    <th className="pr-4 py-1">Controller</th>
+                                                                    <th className="pr-4 py-1">Grand</th>
+                                                                    <th className="pr-4 py-1">Major</th>
+                                                                    <th className="pr-4 py-1">Bet Range</th>
+                                                                    <th className="py-1">Status</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                {game.jackpots.map((j: any) => (
+                                                                    <tr key={j.id} className={j.isActive === false ? "text-red-400" : "text-gray-200"}>
+                                                                        <td className="pr-4 py-1">{j.controller?.name} {j.controller?.version}</td>
+                                                                        <td className="pr-4 py-1">€{j.initialGrand}</td>
+                                                                        <td className="pr-4 py-1">€{j.initialMajor}</td>
+                                                                        <td className="pr-4 py-1">€{j.minBet} - €{j.maxBet}</td>
+                                                                        <td className="py-1">{j.isActive === false ? "Blocked" : "Active"}</td>
+                                                                    </tr>
+                                                                ))}
+                                                            </tbody>
+                                                        </table>
+                                                    ) : (
+                                                        <p className="text-gray-400 text-sm">No jackpots configured.</p>
+                                                    )}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    )}
+                                </>
                             ))}
                         </tbody>
                     </table>
                 </div>
             </main>
 
-            {/* Game & Jackpot Modal */}
-            {gameModalOpen && (
+            {/* Game & Jackpot Modal - only for write users */}
+            {canWrite() && gameModalOpen && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
                     <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
                         <h2 className="text-xl font-bold mb-4 text-gray-900 dark:text-white">

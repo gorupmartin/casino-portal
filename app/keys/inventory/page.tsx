@@ -4,12 +4,22 @@ import { useState, useEffect } from "react";
 import Navbar from "@/components/Navbar";
 import { useSession } from "next-auth/react";
 
+interface Permission {
+    module: string;
+    canView: boolean;
+    canWrite: boolean;
+}
+
 export default function InventoryPage() {
-    const { data: session } = useSession();
+    const { data: session, status } = useSession();
+    const [permissions, setPermissions] = useState<Permission[]>([]);
     const [keys, setKeys] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [formData, setFormData] = useState({ keyCode: "", silverCount: 0, goldCount: 0 });
     const [submitting, setSubmitting] = useState(false);
+
+    // @ts-ignore
+    const isAdmin = session?.user?.role === "ADMIN";
 
     // Modal State
     const [modalOpen, setModalOpen] = useState(false);
@@ -20,6 +30,33 @@ export default function InventoryPage() {
 
     const [search, setSearch] = useState("");
     const [showUnassigned, setShowUnassigned] = useState(false);
+
+    // Fetch permissions for non-admin users
+    useEffect(() => {
+        const fetchPermissions = async () => {
+            if (status === "authenticated" && !isAdmin) {
+                try {
+                    const res = await fetch("/api/user/permissions");
+                    if (res.ok) {
+                        const data = await res.json();
+                        setPermissions(data.permissions || []);
+                    }
+                } catch (error) {
+                    console.error("Error fetching permissions:", error);
+                }
+            }
+        };
+
+        if (status !== "loading") {
+            fetchPermissions();
+        }
+    }, [status, isAdmin]);
+
+    const canWrite = () => {
+        if (isAdmin) return true;
+        const perm = permissions.find(p => p.module === "keys");
+        return perm?.canWrite || false;
+    };
 
     const fetchKeys = async (query = "", unassigned = false) => {
         setLoading(true);
@@ -110,8 +147,8 @@ export default function InventoryPage() {
                     </div>
                 </div>
 
-                {/* Add Form (Admin Only) */}
-                {(session?.user as any)?.role === "ADMIN" && (
+                {/* Add Form (Users with canWrite permission) */}
+                {canWrite() && (
                     <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow mb-8">
                         <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Add / Update Stock</h2>
                         <p className="text-sm text-gray-500 mb-4 dark:text-gray-400">Enter a Key Code. If it exists, stock will be added. If not, a new record is created.</p>
@@ -162,12 +199,14 @@ export default function InventoryPage() {
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Silver (Good / Broken)</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Gold (Good / Broken)</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Status</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Actions</th>
+                                {canWrite() && (
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Actions</th>
+                                )}
                             </tr>
                         </thead>
                         <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                             {loading ? (
-                                <tr><td colSpan={5} className="p-4 text-center">Loading...</td></tr>
+                                <tr><td colSpan={canWrite() ? 5 : 4} className="p-4 text-center">Loading...</td></tr>
                             ) : keys.map((key) => {
                                 const isAssigned = key.assignments.length > 0;
                                 return (
@@ -202,16 +241,16 @@ export default function InventoryPage() {
                                             )}
                                         </td>
 
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                            {(session?.user as any)?.role === "ADMIN" && (
+                                        {canWrite() && (
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                                 <button
                                                     onClick={() => openReportModal(key)}
                                                     className="text-orange-600 hover:text-orange-900 dark:text-orange-400 dark:hover:text-orange-300"
                                                 >
                                                     Report Broken
                                                 </button>
-                                            )}
-                                        </td>
+                                            </td>
+                                        )}
                                     </tr>
                                 );
                             })}

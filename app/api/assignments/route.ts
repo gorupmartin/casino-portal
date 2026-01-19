@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { createAuditLog } from "@/lib/audit";
+import { hasPermission } from "@/lib/permissions";
 
 // GET: Fetch all assignments
 export async function GET(request: Request) {
@@ -34,8 +35,12 @@ export async function GET(request: Request) {
 // POST: Create new assignment
 export async function POST(request: Request) {
     const session = await getServerSession(authOptions);
-    // @ts-ignore
-    if (!session || session.user?.role !== "ADMIN") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    // @ts-ignore - Check if user has write permission for keys module
+    const userId = parseInt(session.user.id);
+    const canWrite = await hasPermission(userId, "keys", "write");
+    if (!canWrite) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     try {
         const body = await request.json();
@@ -97,8 +102,12 @@ export async function POST(request: Request) {
 // DELETE: Remove assignment
 export async function DELETE(request: Request) {
     const session = await getServerSession(authOptions);
-    // @ts-ignore
-    if (!session || session.user?.role !== "ADMIN") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    // @ts-ignore - Check if user has write permission for keys module
+    const userId = parseInt(session.user.id);
+    const canWrite = await hasPermission(userId, "keys", "write");
+    if (!canWrite) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     try {
         const { id } = await request.json();

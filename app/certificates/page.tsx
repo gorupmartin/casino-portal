@@ -5,8 +5,16 @@ import Navbar from "@/components/Navbar";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 
+interface Permission {
+    module: string;
+    canView: boolean;
+    canWrite: boolean;
+}
+
 export default function CertificatesPage() {
-    const { data: session } = useSession();
+    const { data: session, status } = useSession();
+    const [permissions, setPermissions] = useState<Permission[]>([]);
+
     // @ts-ignore
     const isAdmin = session?.user?.role === "ADMIN";
 
@@ -22,7 +30,35 @@ export default function CertificatesPage() {
     // Edit Modal State
     const [editModalOpen, setEditModalOpen] = useState(false);
     const [editData, setEditData] = useState<any>(null);
+    const [allCabinets, setAllCabinets] = useState<any[]>([]);
     const [uploading, setUploading] = useState(false);
+
+    // Fetch permissions for non-admin users
+    useEffect(() => {
+        const fetchPermissions = async () => {
+            if (status === "authenticated" && !isAdmin) {
+                try {
+                    const res = await fetch("/api/user/permissions");
+                    if (res.ok) {
+                        const data = await res.json();
+                        setPermissions(data.permissions || []);
+                    }
+                } catch (error) {
+                    console.error("Error fetching permissions:", error);
+                }
+            }
+        };
+
+        if (status !== "loading") {
+            fetchPermissions();
+        }
+    }, [status, isAdmin]);
+
+    const canWrite = () => {
+        if (isAdmin) return true;
+        const perm = permissions.find(p => p.module === "certificates");
+        return perm?.canWrite || false;
+    };
 
     const fetchCertificates = async () => {
         setLoading(true);
@@ -45,6 +81,18 @@ export default function CertificatesPage() {
             setCertificates([]);
         }
         setLoading(false);
+    };
+
+    const fetchAllCabinets = async () => {
+        try {
+            const res = await fetch("/api/certificates/dictionaries?type=cabinet");
+            if (res.ok) {
+                const data = await res.json();
+                setAllCabinets(data.filter((c: any) => c.isActive !== false));
+            }
+        } catch (e) {
+            console.error(e);
+        }
     };
 
     useEffect(() => {
@@ -72,12 +120,14 @@ export default function CertificatesPage() {
     };
 
     const openEdit = (cert: any) => {
+        fetchAllCabinets();
         setEditData({
             id: cert.id,
             name: cert.name,
             recognizedHr: cert.recognizedHr,
             forSlovenia: cert.forSlovenia,
-            filePath: cert.filePath
+            filePath: cert.filePath,
+            cabinetIds: cert.cabinets?.map((c: any) => c.cabinet.id) || []
         });
         setEditModalOpen(true);
     };
@@ -116,7 +166,8 @@ export default function CertificatesPage() {
                 id: editData.id,
                 recognizedHr: editData.recognizedHr,
                 forSlovenia: editData.forSlovenia,
-                filePath: editData.filePath
+                filePath: editData.filePath,
+                cabinetIds: editData.cabinetIds
             })
         });
 
@@ -142,7 +193,7 @@ export default function CertificatesPage() {
                             Valid certificates linking Games, Boards, and Cabinets.
                         </p>
                     </div>
-                    {isAdmin && (
+                    {canWrite() && (
                         <div className="mt-4 sm:ml-16 sm:mt-0 sm:flex-none">
                             <Link
                                 href="/certificates/new"
@@ -225,7 +276,7 @@ export default function CertificatesPage() {
                                     <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
                                         Status
                                     </th>
-                                    {isAdmin && <th scope="col" className="relative py-3.5 pl-3 pr-4 sm:pr-6"><span className="sr-only">Actions</span></th>}
+                                    {canWrite() && <th scope="col" className="relative py-3.5 pl-3 pr-4 sm:pr-6"><span className="sr-only">Actions</span></th>}
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-900">
@@ -279,7 +330,7 @@ export default function CertificatesPage() {
                                                     <span className="text-green-600">Active</span>
                                                 }
                                             </td>
-                                            {isAdmin && (
+                                            {canWrite() && (
                                                 <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6 space-x-2">
                                                     <button onClick={() => openEdit(cert)} className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400">
                                                         Edit
@@ -350,8 +401,61 @@ export default function CertificatesPage() {
                                 </div>
                             </div>
 
+                            {/* Cabinet Editing */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Cabinets (Kućišta)</label>
+
+                                {/* Current cabinets */}
+                                <div className="flex flex-wrap gap-2 mb-2">
+                                    {editData.cabinetIds?.map((cabId: number) => {
+                                        const cab = allCabinets.find((c: any) => c.id === cabId);
+                                        return (
+                                            <span key={cabId} className="inline-flex items-center gap-1 px-2 py-1 bg-indigo-100 text-indigo-800 rounded text-sm dark:bg-indigo-900 dark:text-indigo-200">
+                                                {cab?.name || `ID: ${cabId}`}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setEditData({
+                                                        ...editData,
+                                                        cabinetIds: editData.cabinetIds.filter((id: number) => id !== cabId)
+                                                    })}
+                                                    className="text-red-500 hover:text-red-700 ml-1"
+                                                >
+                                                    ×
+                                                </button>
+                                            </span>
+                                        );
+                                    })}
+                                    {(!editData.cabinetIds || editData.cabinetIds.length === 0) && (
+                                        <span className="text-gray-400 text-sm">No cabinets assigned</span>
+                                    )}
+                                </div>
+
+                                {/* Add cabinet dropdown */}
+                                <select
+                                    onChange={(e) => {
+                                        const newId = parseInt(e.target.value);
+                                        if (newId && !editData.cabinetIds?.includes(newId)) {
+                                            setEditData({
+                                                ...editData,
+                                                cabinetIds: [...(editData.cabinetIds || []), newId]
+                                            });
+                                        }
+                                        e.target.value = "";
+                                    }}
+                                    className="block w-full rounded-md border-gray-300 shadow-sm p-2 bg-white dark:bg-gray-700 dark:text-white border text-sm"
+                                >
+                                    <option value="">+ Add cabinet...</option>
+                                    {allCabinets
+                                        .filter((c: any) => !editData.cabinetIds?.includes(c.id))
+                                        .map((c: any) => (
+                                            <option key={c.id} value={c.id}>{c.name}</option>
+                                        ))
+                                    }
+                                </select>
+                            </div>
+
                             <div className="alert bg-yellow-50 text-yellow-800 p-2 rounded text-xs">
-                                Note: Game, Board and Cabinets cannot be edited.
+                                Note: Game and Board cannot be edited.
                             </div>
 
                             <div className="flex justify-end gap-3 mt-6">

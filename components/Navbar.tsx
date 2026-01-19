@@ -3,11 +3,50 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
+import { useState, useEffect } from "react";
+
+interface Permission {
+    module: string;
+    canView: boolean;
+    canWrite: boolean;
+}
 
 export default function Navbar() {
     const pathname = usePathname();
     const searchParams = useSearchParams();
-    const { data: session } = useSession();
+    const { data: session, status } = useSession();
+    const [permissions, setPermissions] = useState<Permission[]>([]);
+
+    // @ts-ignore
+    const isAdmin = session?.user?.role === "ADMIN";
+
+    // Fetch permissions for non-admin users
+    useEffect(() => {
+        const fetchPermissions = async () => {
+            if (status === "authenticated" && !isAdmin) {
+                try {
+                    const res = await fetch("/api/user/permissions");
+                    if (res.ok) {
+                        const data = await res.json();
+                        setPermissions(data.permissions || []);
+                    }
+                } catch (error) {
+                    console.error("Error fetching permissions:", error);
+                }
+            }
+        };
+
+        if (status !== "loading") {
+            fetchPermissions();
+        }
+    }, [status, isAdmin]);
+
+    // Permission check helpers
+    const canWriteModule = (module: string) => {
+        if (isAdmin) return true;
+        const perm = permissions.find(p => p.module === module);
+        return perm?.canWrite || false;
+    };
 
     const isActive = (path: string) => pathname === path;
     const currentTab = searchParams.get("tab");
@@ -46,7 +85,7 @@ export default function Navbar() {
                                     >
                                         Inventory
                                     </Link>
-                                    {(session?.user as any)?.role === "ADMIN" && (
+                                    {canWriteModule("keys") && (
                                         <>
                                             <Link
                                                 href="/locations"
@@ -83,27 +122,26 @@ export default function Navbar() {
                                     >
                                         Certificates
                                     </Link>
-                                    {(session?.user as any)?.role === "ADMIN" && (
-                                        <>
-                                            <Link
-                                                href="/certificates/games"
-                                                className={`inline-flex items-center border-b-2 px-1 pt-1 text-sm font-medium ${isActive("/certificates/games")
-                                                    ? "border-indigo-500 text-gray-900 dark:text-white"
-                                                    : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-300 dark:hover:text-white"
-                                                    }`}
-                                            >
-                                                Games
-                                            </Link>
-                                            <Link
-                                                href="/certificates/dictionaries"
-                                                className={`inline-flex items-center border-b-2 px-1 pt-1 text-sm font-medium ${isActive("/certificates/dictionaries")
-                                                    ? "border-indigo-500 text-gray-900 dark:text-white"
-                                                    : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-300 dark:hover:text-white"
-                                                    }`}
-                                            >
-                                                Dictionaries
-                                            </Link>
-                                        </>
+                                    {/* Games tab visible for all users with view permission (read-only mode for non-writers) */}
+                                    <Link
+                                        href="/certificates/games"
+                                        className={`inline-flex items-center border-b-2 px-1 pt-1 text-sm font-medium ${isActive("/certificates/games")
+                                            ? "border-indigo-500 text-gray-900 dark:text-white"
+                                            : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-300 dark:hover:text-white"
+                                            }`}
+                                    >
+                                        Games
+                                    </Link>
+                                    {canWriteModule("certificates") && (
+                                        <Link
+                                            href="/certificates/dictionaries"
+                                            className={`inline-flex items-center border-b-2 px-1 pt-1 text-sm font-medium ${isActive("/certificates/dictionaries")
+                                                ? "border-indigo-500 text-gray-900 dark:text-white"
+                                                : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-300 dark:hover:text-white"
+                                                }`}
+                                        >
+                                            Dictionaries
+                                        </Link>
                                     )}
                                 </>
                             )}
@@ -120,24 +158,28 @@ export default function Navbar() {
                                     >
                                         Summary
                                     </Link>
-                                    <Link
-                                        href="/workhours?tab=logs"
-                                        className={`inline-flex items-center border-b-2 px-1 pt-1 text-sm font-medium ${isActive("/workhours") && currentTab === "logs"
-                                            ? "border-indigo-500 text-gray-900 dark:text-white"
-                                            : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-300 dark:hover:text-white"
-                                            }`}
-                                    >
-                                        Working Hours
-                                    </Link>
-                                    <Link
-                                        href="/workhours/dictionaries"
-                                        className={`inline-flex items-center border-b-2 px-1 pt-1 text-sm font-medium ${pathname.includes("/dictionaries")
-                                            ? "border-indigo-500 text-gray-900 dark:text-white"
-                                            : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-300 dark:hover:text-white"
-                                            }`}
-                                    >
-                                        Dictionaries
-                                    </Link>
+                                    {canWriteModule("workhours") && (
+                                        <>
+                                            <Link
+                                                href="/workhours?tab=logs"
+                                                className={`inline-flex items-center border-b-2 px-1 pt-1 text-sm font-medium ${isActive("/workhours") && currentTab === "logs"
+                                                    ? "border-indigo-500 text-gray-900 dark:text-white"
+                                                    : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-300 dark:hover:text-white"
+                                                    }`}
+                                            >
+                                                Working Hours
+                                            </Link>
+                                            <Link
+                                                href="/workhours/dictionaries"
+                                                className={`inline-flex items-center border-b-2 px-1 pt-1 text-sm font-medium ${pathname.includes("/dictionaries")
+                                                    ? "border-indigo-500 text-gray-900 dark:text-white"
+                                                    : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-300 dark:hover:text-white"
+                                                    }`}
+                                            >
+                                                Dictionaries
+                                            </Link>
+                                        </>
+                                    )}
                                 </>
                             )}
 
@@ -177,7 +219,7 @@ export default function Navbar() {
                                     )
                                 </span>
                                 <button
-                                    onClick={() => signOut()}
+                                    onClick={() => signOut({ callbackUrl: '/login' })}
                                     className="rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:bg-gray-700 dark:text-white dark:ring-gray-600 dark:hover:bg-gray-600"
                                 >
                                     Sign out

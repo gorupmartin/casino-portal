@@ -1,16 +1,25 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 
 type TabType = "summary" | "logs" | "dictionaries";
 
+interface Permission {
+    module: string;
+    canView: boolean;
+    canWrite: boolean;
+}
+
 export default function WorkHoursPage() {
-    const { data: session } = useSession();
+    const { data: session, status } = useSession();
     const searchParams = useSearchParams();
+    const router = useRouter();
+    const [permissions, setPermissions] = useState<Permission[]>([]);
+
     // @ts-ignore
     const isAdmin = session?.user?.role === "ADMIN";
 
@@ -25,13 +34,52 @@ export default function WorkHoursPage() {
     const [logForm, setLogForm] = useState({ technicianId: "", date: "", startTime: "", endTime: "", notes: "" });
     const [logModalOpen, setLogModalOpen] = useState(false);
 
+    // Fetch permissions for non-admin users
+    useEffect(() => {
+        const fetchPermissions = async () => {
+            if (status === "authenticated" && !isAdmin) {
+                try {
+                    const res = await fetch("/api/user/permissions");
+                    if (res.ok) {
+                        const data = await res.json();
+                        setPermissions(data.permissions || []);
+                    }
+                } catch (error) {
+                    console.error("Error fetching permissions:", error);
+                }
+            }
+        };
+
+        if (status !== "loading") {
+            fetchPermissions();
+        }
+    }, [status, isAdmin]);
+
+    const canWrite = () => {
+        if (isAdmin) return true;
+        const perm = permissions.find(p => p.module === "workhours");
+        return perm?.canWrite || false;
+    };
+
+    const canView = () => {
+        if (isAdmin) return true;
+        const perm = permissions.find(p => p.module === "workhours");
+        return perm?.canView || false;
+    };
+
     // Read tab from URL
     useEffect(() => {
         const tab = searchParams.get("tab");
         if (tab === "logs" || tab === "summary" || tab === "dictionaries") {
-            setActiveTab(tab);
+            // If user doesn't have write permission, force summary tab
+            if (!canWrite() && (tab === "logs" || tab === "dictionaries")) {
+                router.replace("/workhours?tab=summary");
+                setActiveTab("summary");
+            } else {
+                setActiveTab(tab);
+            }
         }
-    }, [searchParams]);
+    }, [searchParams, permissions, isAdmin]);
 
     // Fetch data
     const fetchTechnicians = async () => {
@@ -132,12 +180,25 @@ export default function WorkHoursPage() {
         (s.firstName + " " + s.lastName).toLowerCase().includes(search.toLowerCase())
     );
 
-    if (!isAdmin) {
+    // Loading state
+    if (status === "loading") {
         return (
             <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
                 <Navbar />
                 <div className="flex items-center justify-center h-96">
-                    <p className="text-gray-500">Admin access required.</p>
+                    <p className="text-gray-500">Loading...</p>
+                </div>
+            </div>
+        );
+    }
+
+    // Access denied for users without view permission
+    if (!canView()) {
+        return (
+            <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+                <Navbar />
+                <div className="flex items-center justify-center h-96">
+                    <p className="text-gray-500">Access denied.</p>
                 </div>
             </div>
         );
@@ -156,7 +217,7 @@ export default function WorkHoursPage() {
                             Track work logs and overtime for technicians.
                         </p>
                     </div>
-                    {activeTab === "logs" && (
+                    {activeTab === "logs" && canWrite() && (
                         <div className="mt-4 sm:ml-16 sm:mt-0 sm:flex-none">
                             <button
                                 onClick={() => setLogModalOpen(true)}
@@ -180,8 +241,8 @@ export default function WorkHoursPage() {
                     />
                 </div>
 
-                {/* WORK LOGS TAB */}
-                {activeTab === "logs" && (
+                {/* WORK LOGS TAB - only for users with write permission */}
+                {activeTab === "logs" && canWrite() && (
                     <div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5 sm:rounded-lg">
                         <table className="min-w-full divide-y divide-gray-300 dark:divide-gray-700">
                             <thead className="bg-gray-50 dark:bg-gray-800">
@@ -234,7 +295,7 @@ export default function WorkHoursPage() {
                     </div>
                 )}
 
-                {/* SUMMARY TAB */}
+                {/* SUMMARY TAB - visible to all users with view permission */}
                 {activeTab === "summary" && (
                     <div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5 sm:rounded-lg">
                         <table className="min-w-full divide-y divide-gray-300 dark:divide-gray-700">
@@ -264,8 +325,8 @@ export default function WorkHoursPage() {
                     </div>
                 )}
 
-                {/* DICTIONARIES TAB */}
-                {activeTab === "dictionaries" && (
+                {/* DICTIONARIES TAB - only for users with write permission */}
+                {activeTab === "dictionaries" && canWrite() && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <Link
                             href="/workhours/dictionaries?tab=technicians"
@@ -296,7 +357,7 @@ export default function WorkHoursPage() {
             </main>
 
             {/* Add Work Log Modal */}
-            {logModalOpen && (
+            {logModalOpen && canWrite() && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
                     <div className="bg-white dark:bg-gray-800 rounded-lg p-8 max-w-2xl w-full">
                         <h3 className="text-xl font-bold mb-6 text-gray-900 dark:text-white">Add Work Log</h3>

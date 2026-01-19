@@ -4,14 +4,51 @@ import { useState, useEffect } from "react";
 import Navbar from "@/components/Navbar";
 import { useSession } from "next-auth/react";
 
+interface Permission {
+    module: string;
+    canView: boolean;
+    canWrite: boolean;
+}
+
 export default function LocationsPage() {
-    const { data: session } = useSession();
+    const { data: session, status } = useSession();
+    const [permissions, setPermissions] = useState<Permission[]>([]);
     const [locations, setLocations] = useState<any[]>([]);
     const [locationTypes, setLocationTypes] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [newName, setNewName] = useState("");
     const [newTypeId, setNewTypeId] = useState("");
     const [submitting, setSubmitting] = useState(false);
+
+    // @ts-ignore
+    const isAdmin = session?.user?.role === "ADMIN";
+
+    // Fetch permissions for non-admin users
+    useEffect(() => {
+        const fetchPermissions = async () => {
+            if (status === "authenticated" && !isAdmin) {
+                try {
+                    const res = await fetch("/api/user/permissions");
+                    if (res.ok) {
+                        const data = await res.json();
+                        setPermissions(data.permissions || []);
+                    }
+                } catch (error) {
+                    console.error("Error fetching permissions:", error);
+                }
+            }
+        };
+
+        if (status !== "loading") {
+            fetchPermissions();
+        }
+    }, [status, isAdmin]);
+
+    const canWrite = () => {
+        if (isAdmin) return true;
+        const perm = permissions.find(p => p.module === "keys");
+        return perm?.canWrite || false;
+    };
 
     const fetchLocations = async () => {
         setLoading(true);
@@ -74,8 +111,8 @@ export default function LocationsPage() {
             <main className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-8">
                 <h1 className="text-2xl font-bold mb-6 text-gray-900 dark:text-white">Locations Management (Poslovnice)</h1>
 
-                {/* Add Form (Admin Only) */}
-                {(session?.user as any)?.role === "ADMIN" && (
+                {/* Add Form (Users with canWrite permission) */}
+                {canWrite() && (
                     <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow mb-8">
                         <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Add New Location</h2>
                         <form onSubmit={handleCreate} className="flex gap-4 items-end">
@@ -123,12 +160,14 @@ export default function LocationsPage() {
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Name</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Type</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Status</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Actions</th>
+                                {canWrite() && (
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Actions</th>
+                                )}
                             </tr>
                         </thead>
                         <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                             {loading ? (
-                                <tr><td colSpan={5} className="p-4 text-center text-sm text-gray-500">Loading...</td></tr>
+                                <tr><td colSpan={canWrite() ? 5 : 4} className="p-4 text-center text-sm text-gray-500">Loading...</td></tr>
                             ) : locations.map((loc) => (
                                 <tr key={loc.id} className={loc.status === "CLOSED" ? "opacity-60 bg-gray-50 dark:bg-gray-900" : ""}>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{loc.id}</td>
@@ -144,8 +183,8 @@ export default function LocationsPage() {
                                             {loc.status}
                                         </span>
                                     </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                        {(session?.user as any)?.role === "ADMIN" && (
+                                    {canWrite() && (
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                             <button
                                                 onClick={() => handleStatusToggle(loc.id, loc.status)}
                                                 className={`text-sm font-medium px-3 py-1 rounded ${loc.status === 'OPEN'
@@ -155,8 +194,8 @@ export default function LocationsPage() {
                                             >
                                                 {loc.status === 'OPEN' ? 'Close' : 'Open'}
                                             </button>
-                                        )}
-                                    </td>
+                                        </td>
+                                    )}
                                 </tr>
                             ))}
                         </tbody>

@@ -6,8 +6,16 @@ import { useSession } from "next-auth/react";
 
 type DictionaryType = "location-type" | "position" | "key-type";
 
+interface Permission {
+    module: string;
+    canView: boolean;
+    canWrite: boolean;
+}
+
 export default function KeysDictionaryManager() {
-    const { data: session } = useSession();
+    const { data: session, status } = useSession();
+    const [permissions, setPermissions] = useState<Permission[]>([]);
+
     // @ts-ignore
     const isAdmin = session?.user?.role === "ADMIN";
 
@@ -19,6 +27,33 @@ export default function KeysDictionaryManager() {
     // Modal State
     const [modalOpen, setModalOpen] = useState(false);
     const [formData, setFormData] = useState<any>({});
+
+    // Fetch permissions for non-admin users
+    useEffect(() => {
+        const fetchPermissions = async () => {
+            if (status === "authenticated" && !isAdmin) {
+                try {
+                    const res = await fetch("/api/user/permissions");
+                    if (res.ok) {
+                        const data = await res.json();
+                        setPermissions(data.permissions || []);
+                    }
+                } catch (error) {
+                    console.error("Error fetching permissions:", error);
+                }
+            }
+        };
+
+        if (status !== "loading") {
+            fetchPermissions();
+        }
+    }, [status, isAdmin]);
+
+    const canWrite = () => {
+        if (isAdmin) return true;
+        const perm = permissions.find(p => p.module === "keys");
+        return perm?.canWrite || false;
+    };
 
     const fetchItems = async () => {
         setLoading(true);
@@ -79,7 +114,20 @@ export default function KeysDictionaryManager() {
         setModalOpen(true);
     };
 
-    if (!isAdmin) {
+    // Loading state
+    if (status === "loading") {
+        return (
+            <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+                <Navbar />
+                <div className="flex items-center justify-center h-96">
+                    <p className="text-gray-500">Loading...</p>
+                </div>
+            </div>
+        );
+    }
+
+    // Access check - allow users with canWrite permission
+    if (!canWrite()) {
         return (
             <div className="min-h-screen bg-gray-50 flex flex-col">
                 <Navbar />
@@ -116,8 +164,8 @@ export default function KeysDictionaryManager() {
                                 key={tab.id}
                                 onClick={() => setActiveTab(tab.id as DictionaryType)}
                                 className={`${activeTab === tab.id
-                                        ? "border-indigo-500 text-indigo-600 dark:text-indigo-400"
-                                        : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300"
+                                    ? "border-indigo-500 text-indigo-600 dark:text-indigo-400"
+                                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300"
                                     } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm capitalize`}
                             >
                                 {tab.name}

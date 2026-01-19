@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { createAuditLog } from "@/lib/audit";
+import { hasPermission } from "@/lib/permissions";
 
 // GET: Fetch Certificates with linked data
 export async function GET(request: Request) {
@@ -59,11 +60,12 @@ export async function GET(request: Request) {
 // POST: Create a new Certificate
 export async function POST(request: Request) {
     const session = await getServerSession(authOptions);
+    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    // @ts-ignore
-    if (!session || session.user?.role !== "ADMIN") {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    // @ts-ignore - Check if user has write permission for certificates module
+    const userId = parseInt(session.user.id);
+    const canWrite = await hasPermission(userId, "certificates", "write");
+    if (!canWrite) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     try {
         const body = await request.json();
@@ -120,23 +122,27 @@ export async function POST(request: Request) {
     }
 }
 
-// PUT: Update a Certificate (Block/Unblock, Edit specific fields)
+// PUT: Update a Certificate (Block/Unblock, Edit specific fields, Update Cabinets)
 export async function PUT(request: Request) {
     const session = await getServerSession(authOptions);
+    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    // @ts-ignore
-    if (!session || session.user?.role !== "ADMIN") {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    // @ts-ignore - Check if user has write permission for certificates module
+    const userId = parseInt(session.user.id);
+    const canWrite = await hasPermission(userId, "certificates", "write");
+    if (!canWrite) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     try {
         const body = await request.json();
-        const { id, isActive, recognizedHr, forSlovenia, filePath } = body;
+        const { id, isActive, recognizedHr, forSlovenia, filePath, cabinetIds } = body;
 
         if (!id) return NextResponse.json({ error: "ID required" }, { status: 400 });
 
         // Get old data
-        const oldCert = await prisma.certificateDefinition.findUnique({ where: { id: Number(id) } });
+        const oldCert = await prisma.certificateDefinition.findUnique({
+            where: { id: Number(id) },
+            include: { cabinets: { select: { cabinetId: true } } }
+        });
 
         // Prepare update data
         const updateData: any = {};
@@ -145,9 +151,28 @@ export async function PUT(request: Request) {
         if (forSlovenia !== undefined) updateData.forSlovenia = forSlovenia;
         if (filePath !== undefined) updateData.filePath = filePath;
 
+        // If cabinetIds provided, update the cabinets
+        if (cabinetIds !== undefined && Array.isArray(cabinetIds)) {
+            // Delete all existing cabinet relations
+            await prisma.certificateCabinet.deleteMany({
+                where: { certificateId: Number(id) }
+            });
+
+            // Create new cabinet relations
+            if (cabinetIds.length > 0) {
+                await prisma.certificateCabinet.createMany({
+                    data: cabinetIds.map((cabId: number) => ({
+                        certificateId: Number(id),
+                        cabinetId: cabId
+                    }))
+                });
+            }
+        }
+
         const certificate = await prisma.certificateDefinition.update({
             where: { id: Number(id) },
-            data: updateData
+            data: updateData,
+            include: { cabinets: { include: { cabinet: true } } }
         });
 
         // Audit log
@@ -158,6 +183,7 @@ export async function PUT(request: Request) {
         if (recognizedHr !== undefined && oldCert?.recognizedHr !== recognizedHr) changes.push(`recognizedHr: ${recognizedHr}`);
         if (forSlovenia !== undefined && oldCert?.forSlovenia !== forSlovenia) changes.push(`forSlovenia: ${forSlovenia}`);
         if (filePath !== undefined) changes.push("filePath updated");
+        if (cabinetIds !== undefined) changes.push(`cabinets updated (${cabinetIds.length} cabinets)`);
 
         await createAuditLog({
             // @ts-ignore
@@ -166,8 +192,8 @@ export async function PUT(request: Request) {
             action: "UPDATE",
             tableName: "CertificateDefinition",
             recordId: Number(id),
-            oldValue: { isActive: oldCert?.isActive, recognizedHr: oldCert?.recognizedHr, forSlovenia: oldCert?.forSlovenia },
-            newValue: updateData,
+            oldValue: { isActive: oldCert?.isActive, recognizedHr: oldCert?.recognizedHr, forSlovenia: oldCert?.forSlovenia, cabinets: oldCert?.cabinets.map(c => c.cabinetId) },
+            newValue: { ...updateData, cabinetIds },
             description: `Updated certificate "${oldCert?.name}": ${changes.join(", ")}`
         });
 
@@ -181,11 +207,12 @@ export async function PUT(request: Request) {
 // DELETE: Delete a Certificate
 export async function DELETE(request: Request) {
     const session = await getServerSession(authOptions);
+    if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    // @ts-ignore
-    if (!session || session.user?.role !== "ADMIN") {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    // @ts-ignore - Check if user has write permission for certificates module
+    const userId = parseInt(session.user.id);
+    const canWrite = await hasPermission(userId, "certificates", "write");
+    if (!canWrite) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");

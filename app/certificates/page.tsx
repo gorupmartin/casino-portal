@@ -26,6 +26,12 @@ export default function CertificatesPage() {
     const [showBlocked, setShowBlocked] = useState(false);
     const [filterHr, setFilterHr] = useState(false);
     const [filterSlo, setFilterSlo] = useState(false);
+    const [filterGameId, setFilterGameId] = useState("");
+    const [filterCabinetId, setFilterCabinetId] = useState("");
+
+    // Filter options
+    const [allGames, setAllGames] = useState<any[]>([]);
+    const [allCabinetsFilter, setAllCabinetsFilter] = useState<any[]>([]);
 
     // Edit Modal State
     const [editModalOpen, setEditModalOpen] = useState(false);
@@ -69,6 +75,8 @@ export default function CertificatesPage() {
                 hr: String(filterHr),
                 slo: String(filterSlo)
             });
+            if (filterGameId) queryParams.set("gameId", filterGameId);
+            if (filterCabinetId) queryParams.set("cabinetId", filterCabinetId);
             const res = await fetch(`/api/certificates?${queryParams}`);
             if (res.ok) {
                 const data = await res.json();
@@ -95,9 +103,32 @@ export default function CertificatesPage() {
         }
     };
 
+    const fetchFilterOptions = async () => {
+        try {
+            const [gamesRes, cabinetsRes] = await Promise.all([
+                fetch("/api/certificates/dictionaries?type=game"),
+                fetch("/api/certificates/dictionaries?type=cabinet")
+            ]);
+            if (gamesRes.ok) {
+                const data = await gamesRes.json();
+                setAllGames(data.filter((g: any) => g.isActive !== false));
+            }
+            if (cabinetsRes.ok) {
+                const data = await cabinetsRes.json();
+                setAllCabinetsFilter(data.filter((c: any) => c.isActive !== false));
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
+    useEffect(() => {
+        fetchFilterOptions();
+    }, []);
+
     useEffect(() => {
         fetchCertificates();
-    }, [showBlocked, filterHr, filterSlo]); // Trigger on filter change
+    }, [showBlocked, filterHr, filterSlo, filterGameId, filterCabinetId]); // Trigger on filter change
 
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault();
@@ -223,7 +254,7 @@ export default function CertificatesPage() {
                             </button>
                         </form>
 
-                        <div className="flex gap-4 items-center">
+                        <div className="flex flex-wrap gap-4 items-center">
                             <label className="flex items-center space-x-2 cursor-pointer">
                                 <input
                                     type="checkbox"
@@ -251,6 +282,51 @@ export default function CertificatesPage() {
                                 />
                                 <span className="text-sm text-gray-700 dark:text-gray-300 font-medium">Show Blocked</span>
                             </label>
+
+                            {/* Game Filter */}
+                            <div className="flex items-center gap-1">
+                                <span className="text-xs text-gray-500">Igrica:</span>
+                                <select
+                                    value={filterGameId}
+                                    onChange={e => setFilterGameId(e.target.value)}
+                                    className="rounded-md border-gray-300 shadow-sm p-1.5 bg-white dark:bg-gray-700 dark:text-white border text-sm"
+                                >
+                                    <option value="">Sve</option>
+                                    {allGames.map(g => (
+                                        <option key={g.id} value={g.id}>{g.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {/* Cabinet Filter */}
+                            <div className="flex items-center gap-1">
+                                <span className="text-xs text-gray-500">Kućište:</span>
+                                <select
+                                    value={filterCabinetId}
+                                    onChange={e => setFilterCabinetId(e.target.value)}
+                                    className="rounded-md border-gray-300 shadow-sm p-1.5 bg-white dark:bg-gray-700 dark:text-white border text-sm"
+                                >
+                                    <option value="">Sva</option>
+                                    {allCabinetsFilter.map(c => (
+                                        <option key={c.id} value={c.id}>{c.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {/* Reset Filters */}
+                            {(filterGameId || filterCabinetId || filterHr || filterSlo) && (
+                                <button
+                                    onClick={() => {
+                                        setFilterGameId("");
+                                        setFilterCabinetId("");
+                                        setFilterHr(false);
+                                        setFilterSlo(false);
+                                    }}
+                                    className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 underline"
+                                >
+                                    Reset
+                                </button>
+                            )}
                         </div>
                     </div>
 
@@ -307,7 +383,7 @@ export default function CertificatesPage() {
                                             </td>
                                             <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500 dark:text-gray-300">
                                                 <div className="font-semibold">{cert.game?.name}</div>
-                                                <div className="text-xs">v{cert.game?.version}</div>
+                                                <div className="text-xs">{cert.game?.version}</div>
                                                 <div className="text-xs text-gray-400">Reno: {cert.game?.renoId}</div>
                                             </td>
                                             <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500 dark:text-gray-300">
@@ -318,7 +394,7 @@ export default function CertificatesPage() {
                                                 <div className="flex flex-wrap gap-1">
                                                     {cert.cabinets?.map((c: any) => (
                                                         <span key={c.id} className="inline-flex items-center rounded-md bg-gray-100 dark:bg-gray-700 px-2 py-1 text-xs font-medium text-gray-600 dark:text-gray-300">
-                                                            {c.cabinet?.name} {c.cabinet?.drawerType ? `(${c.cabinet?.drawerType})` : ""}
+                                                            {c.cabinet?.name}
                                                         </span>
                                                     ))}
                                                     {(!cert.cabinets || cert.cabinets.length === 0) && '-'}

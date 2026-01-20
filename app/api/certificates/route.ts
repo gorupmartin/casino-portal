@@ -12,6 +12,8 @@ export async function GET(request: Request) {
     const showBlocked = searchParams.get("showBlocked") === "true";
     const hr = searchParams.get("hr") === "true";
     const slo = searchParams.get("slo") === "true";
+    const gameId = searchParams.get("gameId");
+    const cabinetId = searchParams.get("cabinetId");
 
     try {
         const whereClause: any = {};
@@ -34,6 +36,18 @@ export async function GET(request: Request) {
         // Region Filters
         if (hr) whereClause.recognizedHr = true;
         if (slo) whereClause.forSlovenia = true;
+
+        // Game Filter
+        if (gameId) {
+            whereClause.gameId = Number(gameId);
+        }
+
+        // Cabinet Filter
+        if (cabinetId) {
+            whereClause.cabinets = {
+                some: { cabinetId: Number(cabinetId) }
+            };
+        }
 
         const certificates = await prisma.certificateDefinition.findMany({
             where: whereClause,

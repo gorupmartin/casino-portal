@@ -30,6 +30,15 @@ export default function WorkHoursPage() {
     const [loading, setLoading] = useState(false);
     const [search, setSearch] = useState("");
 
+    // Filters for logs tab
+    const [filterMonth, setFilterMonth] = useState<string>("");
+    const [filterYear, setFilterYear] = useState<string>("");
+    const [filterTechnicianId, setFilterTechnicianId] = useState<string>("");
+
+    // Pagination
+    const [currentPage, setCurrentPage] = useState(1);
+    const ITEMS_PER_PAGE = 100;
+
     // Log Form
     const [logForm, setLogForm] = useState({ technicianId: "", date: "", startTime: "", endTime: "", notes: "" });
     const [logModalOpen, setLogModalOpen] = useState(false);
@@ -88,8 +97,33 @@ export default function WorkHoursPage() {
     };
 
     const fetchLogs = async () => {
-        const res = await fetch("/api/workhours/logs");
-        if (res.ok) setWorkLogs(await res.json());
+        let url = "/api/workhours/logs?";
+        const params = new URLSearchParams();
+
+        if (filterTechnicianId) {
+            params.set("technicianId", filterTechnicianId);
+        }
+
+        if (filterMonth && filterYear) {
+            // Calculate start and end of month
+            const year = parseInt(filterYear);
+            const month = parseInt(filterMonth) - 1; // JS months are 0-indexed
+            const startDate = new Date(year, month, 1).toISOString().split('T')[0];
+            const endDate = new Date(year, month + 1, 0).toISOString().split('T')[0];
+            params.set("startDate", startDate);
+            params.set("endDate", endDate);
+        } else if (filterYear) {
+            // Whole year filter
+            const year = parseInt(filterYear);
+            params.set("startDate", `${year}-01-01`);
+            params.set("endDate", `${year}-12-31`);
+        }
+
+        const res = await fetch(url + params.toString());
+        if (res.ok) {
+            setWorkLogs(await res.json());
+            setCurrentPage(1); // Reset to first page on filter change
+        }
     };
 
     const fetchSummary = async () => {
@@ -104,6 +138,13 @@ export default function WorkHoursPage() {
         fetchSummary();
         setLoading(false);
     }, []);
+
+    // Re-fetch logs when filters change
+    useEffect(() => {
+        if (activeTab === "logs") {
+            fetchLogs();
+        }
+    }, [filterMonth, filterYear, filterTechnicianId]);
 
     // Calculate overtime (client-side for display)
     const calculateOvertime = (start: string, end: string) => {
@@ -175,10 +216,37 @@ export default function WorkHoursPage() {
         (log.technician?.firstName + " " + log.technician?.lastName).toLowerCase().includes(search.toLowerCase())
     );
 
+    // Pagination for logs
+    const totalPages = Math.ceil(filteredLogs.length / ITEMS_PER_PAGE);
+    const paginatedLogs = filteredLogs.slice(
+        (currentPage - 1) * ITEMS_PER_PAGE,
+        currentPage * ITEMS_PER_PAGE
+    );
+
     // Filter summary by search
     const filteredSummary = summary.filter(s =>
         (s.firstName + " " + s.lastName).toLowerCase().includes(search.toLowerCase())
     );
+
+    // Generate year options (current year and 5 years back)
+    const currentYear = new Date().getFullYear();
+    const yearOptions = Array.from({ length: 6 }, (_, i) => currentYear - i);
+
+    // Month names
+    const months = [
+        { value: "1", label: "Siječanj" },
+        { value: "2", label: "Veljača" },
+        { value: "3", label: "Ožujak" },
+        { value: "4", label: "Travanj" },
+        { value: "5", label: "Svibanj" },
+        { value: "6", label: "Lipanj" },
+        { value: "7", label: "Srpanj" },
+        { value: "8", label: "Kolovoz" },
+        { value: "9", label: "Rujan" },
+        { value: "10", label: "Listopad" },
+        { value: "11", label: "Studeni" },
+        { value: "12", label: "Prosinac" }
+    ];
 
     // Loading state
     if (status === "loading") {
@@ -230,19 +298,77 @@ export default function WorkHoursPage() {
                 </div>
 
 
-                {/* Search */}
-                <div className="mb-4">
-                    <input
-                        type="text"
-                        placeholder="Search by technician..."
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        className="w-full max-w-xs rounded-md border-gray-300 shadow-sm p-2 bg-white dark:bg-gray-700 dark:text-white border"
-                    />
+                {/* Search and Filters */}
+                <div className="mb-4 flex flex-wrap gap-4 items-end">
+                    <div>
+                        <input
+                            type="text"
+                            placeholder="Search by technician..."
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            className="w-full max-w-xs rounded-md border-gray-300 shadow-sm p-2 bg-white dark:bg-gray-700 dark:text-white border"
+                        />
+                    </div>
+
+                    {/* Filters only visible on logs tab */}
+                    {activeTab === "logs" && canWrite() && (
+                        <>
+                            <div>
+                                <label className="block text-xs text-gray-500 mb-1">Tehnician</label>
+                                <select
+                                    value={filterTechnicianId}
+                                    onChange={(e) => setFilterTechnicianId(e.target.value)}
+                                    className="rounded-md border-gray-300 shadow-sm p-2 bg-white dark:bg-gray-700 dark:text-white border text-sm"
+                                >
+                                    <option value="">Svi</option>
+                                    {activeTechs.map(t => (
+                                        <option key={t.id} value={t.id}>{t.firstName} {t.lastName}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-xs text-gray-500 mb-1">Mjesec</label>
+                                <select
+                                    value={filterMonth}
+                                    onChange={(e) => setFilterMonth(e.target.value)}
+                                    className="rounded-md border-gray-300 shadow-sm p-2 bg-white dark:bg-gray-700 dark:text-white border text-sm"
+                                >
+                                    <option value="">Svi</option>
+                                    {months.map(m => (
+                                        <option key={m.value} value={m.value}>{m.label}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-xs text-gray-500 mb-1">Godina</label>
+                                <select
+                                    value={filterYear}
+                                    onChange={(e) => setFilterYear(e.target.value)}
+                                    className="rounded-md border-gray-300 shadow-sm p-2 bg-white dark:bg-gray-700 dark:text-white border text-sm"
+                                >
+                                    <option value="">Sve</option>
+                                    {yearOptions.map(y => (
+                                        <option key={y} value={y}>{y}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <button
+                                onClick={() => {
+                                    setFilterTechnicianId("");
+                                    setFilterMonth("");
+                                    setFilterYear("");
+                                    setSearch("");
+                                }}
+                                className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 underline"
+                            >
+                                Reset filters
+                            </button>
+                        </>
+                    )}
                 </div>
 
                 {/* WORK LOGS TAB - only for users with write permission */}
-                {activeTab === "logs" && canWrite() && (
+                {activeTab === "logs" && canWrite() && (<>
                     <div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5 sm:rounded-lg">
                         <table className="min-w-full divide-y divide-gray-300 dark:divide-gray-700">
                             <thead className="bg-gray-50 dark:bg-gray-800">
@@ -259,9 +385,9 @@ export default function WorkHoursPage() {
                             <tbody className="divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-900">
                                 {loading ? (
                                     <tr><td colSpan={7} className="py-4 text-center">Loading...</td></tr>
-                                ) : filteredLogs.length === 0 ? (
+                                ) : paginatedLogs.length === 0 ? (
                                     <tr><td colSpan={7} className="py-4 text-center text-gray-500">No work logs found.</td></tr>
-                                ) : filteredLogs.map((log) => {
+                                ) : paginatedLogs.map((log) => {
                                     const overtime = calculateOvertime(log.startTime, log.endTime);
                                     return (
                                         <tr key={log.id} className="divide-x divide-gray-200 dark:divide-gray-700">
@@ -293,7 +419,35 @@ export default function WorkHoursPage() {
                             </tbody>
                         </table>
                     </div>
-                )}
+
+                    {/* Pagination */}
+                    {totalPages > 1 && (
+                        <div className="flex items-center justify-between mt-4 px-4">
+                            <div className="text-sm text-gray-500">
+                                Prikazano {((currentPage - 1) * ITEMS_PER_PAGE) + 1} - {Math.min(currentPage * ITEMS_PER_PAGE, filteredLogs.length)} od {filteredLogs.length} unosa
+                            </div>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                    disabled={currentPage === 1}
+                                    className="px-3 py-1 border rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-gray-700 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-600"
+                                >
+                                    ← Prethodna
+                                </button>
+                                <span className="px-3 py-1 text-sm text-gray-700 dark:text-gray-300">
+                                    Stranica {currentPage} od {totalPages}
+                                </span>
+                                <button
+                                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                    disabled={currentPage === totalPages}
+                                    className="px-3 py-1 border rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-gray-700 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-600"
+                                >
+                                    Sljedeća →
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </>)}
 
                 {/* SUMMARY TAB - visible to all users with view permission */}
                 {activeTab === "summary" && (

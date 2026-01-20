@@ -254,7 +254,7 @@ export default function GamesManager() {
                                             )}
                                         </td>
                                         <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
-                                            v{game.version} <br /> <span className="text-xs">Reno: {game.renoId}</span> <br />
+                                            {game.version} <br /> <span className="text-xs">Reno: {game.renoId}</span> <br />
                                             {game.isActive === false && <span className="text-red-500 text-xs font-bold">BLOCKED</span>}
                                         </td>
                                         <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">

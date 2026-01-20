@@ -56,6 +56,9 @@ export async function GET(request: Request) {
             };
         });
 
+        // Sort by balance from highest to lowest
+        summary.sort((a, b) => b.totalBalance - a.totalBalance);
+
         return NextResponse.json(summary);
     } catch (error) {
         console.error(error);

@@ -3,7 +3,7 @@ import prisma from "./prisma";
 interface AuditLogParams {
     userId?: number;
     username: string;
-    action: "CREATE" | "UPDATE" | "DELETE";
+    action: "CREATE" | "UPDATE" | "DELETE" | "BLOCK" | "UNBLOCK";
     tableName: string;
     recordId?: number;
     oldValue?: any;

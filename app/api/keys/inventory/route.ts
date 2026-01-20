@@ -4,6 +4,7 @@ import prisma from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { hasPermission } from "@/lib/permissions";
+import { createAuditLog } from "@/lib/audit";
 
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
@@ -53,6 +54,9 @@ export async function POST(request: Request) {
     try {
         const { keyCode, silverCount, goldCount, brokenSilver, brokenGold } = await request.json();
 
+        // @ts-ignore
+        const actorUsername = session.user?.username || session.user?.name || "unknown";
+
         // Check if key already exists
         const existingKey = await prisma.key.findUnique({
             where: { keyCode }
@@ -65,10 +69,22 @@ export async function POST(request: Request) {
                 data: {
                     silverCount: { increment: parseInt(silverCount || 0) },
                     goldCount: { increment: parseInt(goldCount || 0) },
-                    // Typically we don't add broken keys directly via this form, but we could allow it.
-                    // For now, let's assume this form adds GOOD stock.
                 }
             });
+
+            // Audit log for stock update
+            await createAuditLog({
+                // @ts-ignore
+                userId: parseInt(session.user?.id) || undefined,
+                username: actorUsername,
+                action: "UPDATE",
+                tableName: "Key",
+                recordId: updatedKey.id,
+                oldValue: { silverCount: existingKey.silverCount, goldCount: existingKey.goldCount },
+                newValue: { silverCount: updatedKey.silverCount, goldCount: updatedKey.goldCount, addedSilver: silverCount, addedGold: goldCount },
+                description: `Added stock to key "${keyCode}": +${silverCount || 0} silver, +${goldCount || 0} gold`
+            });
+
             return NextResponse.json(updatedKey);
         } else {
             // Create new key
@@ -81,6 +97,19 @@ export async function POST(request: Request) {
                     brokenGold: parseInt(brokenGold || 0),
                 },
             });
+
+            // Audit log for new key
+            await createAuditLog({
+                // @ts-ignore
+                userId: parseInt(session.user?.id) || undefined,
+                username: actorUsername,
+                action: "CREATE",
+                tableName: "Key",
+                recordId: newKey.id,
+                newValue: { keyCode, silverCount, goldCount, brokenSilver, brokenGold },
+                description: `Created new key "${keyCode}" with ${silverCount || 0} silver, ${goldCount || 0} gold`
+            });
+
             return NextResponse.json(newKey);
         }
 
@@ -105,6 +134,9 @@ export async function PUT(request: Request) {
         const key = await prisma.key.findUnique({ where: { id } });
         if (!key) return NextResponse.json({ error: "Key not found" }, { status: 404 });
 
+        // @ts-ignore
+        const actorUsername = session.user?.username || session.user?.name || "unknown";
+
         if (type === 'SILVER') {
             if (key.silverCount < count) {
                 return NextResponse.json({ error: "Not enough silver keys to mark as broken" }, { status: 400 });
@@ -115,6 +147,19 @@ export async function PUT(request: Request) {
                     silverCount: { decrement: count },
                     brokenSilver: { increment: count }
                 }
+            });
+
+            // Audit log
+            await createAuditLog({
+                // @ts-ignore
+                userId: parseInt(session.user?.id) || undefined,
+                username: actorUsername,
+                action: "UPDATE",
+                tableName: "Key",
+                recordId: id,
+                oldValue: { silverCount: key.silverCount, brokenSilver: key.brokenSilver },
+                newValue: { silverCount: updated.silverCount, brokenSilver: updated.brokenSilver },
+                description: `Reported ${count} broken silver key(s) for "${key.keyCode}"`
             });
 
             return NextResponse.json(updated);
@@ -128,6 +173,19 @@ export async function PUT(request: Request) {
                     goldCount: { decrement: count },
                     brokenGold: { increment: count }
                 }
+            });
+
+            // Audit log
+            await createAuditLog({
+                // @ts-ignore
+                userId: parseInt(session.user?.id) || undefined,
+                username: actorUsername,
+                action: "UPDATE",
+                tableName: "Key",
+                recordId: id,
+                oldValue: { goldCount: key.goldCount, brokenGold: key.brokenGold },
+                newValue: { goldCount: updated.goldCount, brokenGold: updated.brokenGold },
+                description: `Reported ${count} broken gold key(s) for "${key.keyCode}"`
             });
 
             return NextResponse.json(updated);

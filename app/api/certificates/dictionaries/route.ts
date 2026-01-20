@@ -4,6 +4,7 @@ import prisma from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { hasPermission } from "@/lib/permissions";
+import { createAuditLog } from "@/lib/audit";
 
 const getModel = (type: string) => {
     switch (type) {
@@ -16,7 +17,16 @@ const getModel = (type: string) => {
     }
 };
 
-
+const getTableName = (type: string) => {
+    switch (type) {
+        case "certificate": return "CertificateDefinition";
+        case "board": return "BoardDefinition";
+        case "cabinet": return "CabinetDefinition";
+        case "game": return "GameDefinition";
+        case "controller": return "ControllerDefinition";
+        default: return type;
+    }
+};
 
 // GET: Fetch all items for a dictionary type
 export async function GET(request: Request) {
@@ -103,6 +113,20 @@ export async function POST(request: Request) {
             }
         });
 
+        // Audit log
+        // @ts-ignore
+        const actorUsername = session.user?.username || session.user?.name || "unknown";
+        await createAuditLog({
+            // @ts-ignore
+            userId: parseInt(session.user?.id) || undefined,
+            username: actorUsername,
+            action: "CREATE",
+            tableName: getTableName(type),
+            recordId: newItem.id,
+            newValue: data,
+            description: `Created ${type} "${data.name || newItem.id}"`
+        });
+
         return NextResponse.json(newItem);
     } catch (error: any) {
         return NextResponse.json({ error: error.message || "Failed to create item" }, { status: 500 });
@@ -127,6 +151,9 @@ export async function PUT(request: Request) {
     if (!model) return NextResponse.json({ error: "Invalid type" }, { status: 400 });
 
     try {
+        // Get old data for audit
+        const oldItem = await model.findUnique({ where: { id: Number(id) } });
+
         // Validation: If blocking, check usage in CertificateCabinet
         if (isActive === false) {
             let whereClause: any = {};
@@ -166,6 +193,23 @@ export async function PUT(request: Request) {
             where: { id: Number(id) },
             data: updateData
         });
+
+        // Audit log
+        // @ts-ignore
+        const actorUsername = session.user?.username || session.user?.name || "unknown";
+        const action = isActive !== undefined ? (isActive ? "UNBLOCK" : "BLOCK") : "UPDATE";
+        await createAuditLog({
+            // @ts-ignore
+            userId: parseInt(session.user?.id) || undefined,
+            username: actorUsername,
+            action: action,
+            tableName: getTableName(type),
+            recordId: Number(id),
+            oldValue: oldItem,
+            newValue: updateData,
+            description: `${action === "BLOCK" ? "Blocked" : action === "UNBLOCK" ? "Unblocked" : "Updated"} ${type} "${oldItem?.name || id}"`
+        });
+
         return NextResponse.json(updatedItem);
     } catch (error: any) {
         return NextResponse.json({ error: error.message || "Failed to update item" }, { status: 500 });
@@ -192,9 +236,27 @@ export async function DELETE(request: Request) {
     if (!model) return NextResponse.json({ error: "Invalid type" }, { status: 400 });
 
     try {
+        // Get old data for audit
+        const oldItem = await model.findUnique({ where: { id: Number(id) } });
+
         await model.delete({
             where: { id: Number(id) }
         });
+
+        // Audit log
+        // @ts-ignore
+        const actorUsername = session.user?.username || session.user?.name || "unknown";
+        await createAuditLog({
+            // @ts-ignore
+            userId: parseInt(session.user?.id) || undefined,
+            username: actorUsername,
+            action: "DELETE",
+            tableName: getTableName(type),
+            recordId: Number(id),
+            oldValue: oldItem,
+            description: `Deleted ${type} "${oldItem?.name || id}"`
+        });
+
         return NextResponse.json({ success: true });
     } catch (error: any) {
         if (error.code === 'P2003') {

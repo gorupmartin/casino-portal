@@ -18,6 +18,10 @@ export default function AssignmentsPage() {
     const [loading, setLoading] = useState(true);
     const [permissions, setPermissions] = useState<Permission[]>([]);
 
+    // Filter by location type
+    const [locationTypes, setLocationTypes] = useState<any[]>([]);
+    const [filterTypeId, setFilterTypeId] = useState("");
+
     // @ts-ignore
     const isAdmin = session?.user?.role === "ADMIN";
 
@@ -50,14 +54,27 @@ export default function AssignmentsPage() {
 
     const fetchAssignments = async (query = "") => {
         setLoading(true);
-        const res = await fetch(`/api/assignments?search=${query}`);
+        let url = `/api/assignments?search=${query}`;
+        if (filterTypeId) url += `&typeId=${filterTypeId}`;
+        const res = await fetch(url);
         if (res.ok) setAssignments(await res.json());
         setLoading(false);
     };
 
+    const fetchLocationTypes = async () => {
+        const res = await fetch("/api/location-types?active=true");
+        if (res.ok) setLocationTypes(await res.json());
+    };
+
     useEffect(() => {
         fetchAssignments();
+        fetchLocationTypes();
     }, []);
+
+    // Re-fetch when filter changes
+    useEffect(() => {
+        fetchAssignments(search);
+    }, [filterTypeId]);
 
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault();
@@ -106,14 +123,39 @@ export default function AssignmentsPage() {
                 </div>
 
                 <div className="mt-8">
-                    <form onSubmit={handleSearch} className="flex gap-4 mb-6">
+                    <form onSubmit={handleSearch} className="flex flex-wrap gap-4 mb-6 items-end">
                         <input
                             type="text"
                             placeholder="Search..."
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
-                            className="block w-full rounded-md border-0 py-1.5 px-3 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6 dark:bg-gray-800 dark:text-white dark:ring-gray-700"
+                            className="block w-64 rounded-md border-0 py-1.5 px-3 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6 dark:bg-gray-800 dark:text-white dark:ring-gray-700"
                         />
+
+                        {/* Type Filter */}
+                        <div className="flex items-center gap-1">
+                            <span className="text-xs text-gray-500">Tip:</span>
+                            <select
+                                value={filterTypeId}
+                                onChange={e => setFilterTypeId(e.target.value)}
+                                className="rounded-md border-gray-300 shadow-sm p-1.5 bg-white dark:bg-gray-700 dark:text-white border text-sm"
+                            >
+                                <option value="">Svi</option>
+                                {locationTypes.map(t => (
+                                    <option key={t.id} value={t.id}>{t.name}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {filterTypeId && (
+                            <button
+                                type="button"
+                                onClick={() => setFilterTypeId("")}
+                                className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 underline"
+                            >
+                                Reset
+                            </button>
+                        )}
                     </form>
 
                     <div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5 sm:rounded-lg">

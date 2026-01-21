@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Navbar from "@/components/Navbar";
 import { useRouter } from "next/navigation";
 
@@ -14,6 +14,12 @@ export default function AssignKeyPage() {
     const [assignments, setAssignments] = useState<any[]>([]);
     const [positions, setPositions] = useState<any[]>([]);
     const [types, setTypes] = useState<any[]>([]);
+
+    // Location search/dropdown
+    const [locationSearch, setLocationSearch] = useState("");
+    const [showLocationDropdown, setShowLocationDropdown] = useState(false);
+    const [selectedLocation, setSelectedLocation] = useState<any>(null);
+    const locationDropdownRef = useRef<HTMLDivElement>(null);
 
     // Form
     const [formData, setFormData] = useState({
@@ -58,6 +64,33 @@ export default function AssignKeyPage() {
     // GLOBAL CABINET: Filter unique positions across ALL assignments
     const globalTakenPositions = assignments.map((a: any) => a.cabinetPositionId);
 
+    // Filtered locations based on search
+    const filteredLocations = locations
+        .filter((l: any) => l.status === "OPEN")
+        .filter((l: any) =>
+            l.name.toLowerCase().includes(locationSearch.toLowerCase()) ||
+            l.locationType.name.toLowerCase().includes(locationSearch.toLowerCase())
+        );
+
+    // Click outside to close dropdown
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (locationDropdownRef.current && !locationDropdownRef.current.contains(event.target as Node)) {
+                setShowLocationDropdown(false);
+            }
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
+
+    // Select location handler
+    const handleSelectLocation = (location: any) => {
+        setSelectedLocation(location);
+        setFormData({ ...formData, locationId: String(location.id) });
+        setLocationSearch(`${location.name} (${location.locationType.name})`);
+        setShowLocationDropdown(false);
+    };
+
     return (
         <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
             <Navbar />
@@ -66,20 +99,47 @@ export default function AssignKeyPage() {
 
                 <form onSubmit={handleSubmit} className="space-y-6 bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
 
-                    {/* Location */}
-                    <div>
+                    {/* Location - Searchable Dropdown */}
+                    <div ref={locationDropdownRef} className="relative">
                         <label className="block text-sm font-medium text-gray-900 dark:text-white">Location</label>
-                        <select
-                            required
-                            value={formData.locationId}
-                            onChange={e => setFormData({ ...formData, locationId: e.target.value })}
+                        <input
+                            type="text"
+                            required={!formData.locationId}
+                            placeholder="Počnite pisati za pretraživanje..."
+                            value={locationSearch}
+                            onChange={e => {
+                                setLocationSearch(e.target.value);
+                                setShowLocationDropdown(true);
+                                // Clear selection if user edits
+                                if (selectedLocation && e.target.value !== `${selectedLocation.name} (${selectedLocation.locationType.name})`) {
+                                    setSelectedLocation(null);
+                                    setFormData({ ...formData, locationId: "" });
+                                }
+                            }}
+                            onFocus={() => setShowLocationDropdown(true)}
                             className="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 bg-white dark:bg-gray-700 dark:text-white border"
-                        >
-                            <option value="">Select Location</option>
-                            {locations.filter((l: any) => l.status === "OPEN").map((l: any) => (
-                                <option key={l.id} value={l.id}>{l.name} ({l.locationType.name})</option>
-                            ))}
-                        </select>
+                        />
+                        {/* Hidden input for form validation */}
+                        <input type="hidden" name="locationId" value={formData.locationId} required />
+
+                        {showLocationDropdown && filteredLocations.length > 0 && (
+                            <div className="absolute z-10 mt-1 w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg max-h-60 overflow-auto">
+                                {filteredLocations.map((l: any) => (
+                                    <div
+                                        key={l.id}
+                                        onClick={() => handleSelectLocation(l)}
+                                        className="px-3 py-2 cursor-pointer hover:bg-indigo-100 dark:hover:bg-indigo-800 text-gray-900 dark:text-white"
+                                    >
+                                        {l.name} <span className="text-gray-500 dark:text-gray-400">({l.locationType.name})</span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                        {showLocationDropdown && locationSearch && filteredLocations.length === 0 && (
+                            <div className="absolute z-10 mt-1 w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg p-3 text-gray-500">
+                                Nema rezultata
+                            </div>
+                        )}
                     </div>
 
                     {/* Key (Unassigned only) */}

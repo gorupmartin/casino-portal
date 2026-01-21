@@ -9,15 +9,27 @@ import { hasPermission } from "@/lib/permissions";
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const search = searchParams.get("search");
+    const typeId = searchParams.get("typeId");
 
     try {
+        const whereClause: any = {};
+
+        if (search) {
+            whereClause.OR = [
+                { location: { name: { contains: search } } },
+                { key: { keyCode: { contains: search } } }
+            ];
+        }
+
+        if (typeId) {
+            whereClause.location = {
+                ...whereClause.location,
+                locationTypeId: Number(typeId)
+            };
+        }
+
         const assignments = await prisma.keyAssignment.findMany({
-            where: search ? {
-                OR: [
-                    { location: { name: { contains: search } } },
-                    { key: { keyCode: { contains: search } } }
-                ]
-            } : {},
+            where: whereClause,
             include: {
                 location: { include: { locationType: true } },
                 key: true,

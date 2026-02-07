@@ -40,7 +40,7 @@ export default function WorkHoursPage() {
     const ITEMS_PER_PAGE = 100;
 
     // Log Form
-    const [logForm, setLogForm] = useState({ technicianId: "", date: "", startTime: "", endTime: "", notes: "" });
+    const [logForm, setLogForm] = useState({ technicianId: "", date: "", startTime: "", endTime: "", notes: "", isManualEntry: false, manualOvertime: "" });
     const [logModalOpen, setLogModalOpen] = useState(false);
 
     // Fetch permissions for non-admin users
@@ -184,17 +184,28 @@ export default function WorkHoursPage() {
             ? `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}`
             : logForm.date;
 
+        // Prepare payload based on manual entry mode
+        const payload: any = {
+            technicianId: logForm.technicianId,
+            date: apiDate,
+            notes: logForm.notes
+        };
+
+        if (logForm.isManualEntry) {
+            payload.manualOvertime = logForm.manualOvertime;
+        } else {
+            payload.startTime = logForm.startTime;
+            payload.endTime = logForm.endTime;
+        }
+
         const res = await fetch("/api/workhours/logs", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                ...logForm,
-                date: apiDate
-            })
+            body: JSON.stringify(payload)
         });
         if (res.ok) {
             setLogModalOpen(false);
-            setLogForm({ technicianId: "", date: "", startTime: "", endTime: "", notes: "" });
+            setLogForm({ technicianId: "", date: "", startTime: "", endTime: "", notes: "", isManualEntry: false, manualOvertime: "" });
             fetchLogs();
             fetchSummary();
         } else {
@@ -388,7 +399,11 @@ export default function WorkHoursPage() {
                                 ) : paginatedLogs.length === 0 ? (
                                     <tr><td colSpan={7} className="py-4 text-center text-gray-500">No work logs found.</td></tr>
                                 ) : paginatedLogs.map((log) => {
-                                    const overtime = calculateOvertime(log.startTime, log.endTime);
+                                    // Use manualOvertime if available, otherwise calculate from times
+                                    const isManual = log.manualOvertime !== null && log.manualOvertime !== undefined;
+                                    const overtime = isManual
+                                        ? Number(log.manualOvertime)
+                                        : (log.startTime && log.endTime ? calculateOvertime(log.startTime, log.endTime) : 0);
                                     return (
                                         <tr key={log.id} className="divide-x divide-gray-200 dark:divide-gray-700">
                                             <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 dark:text-white">
@@ -397,10 +412,15 @@ export default function WorkHoursPage() {
                                             <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500 dark:text-gray-300">
                                                 {new Date(log.date).toLocaleDateString('en-GB')}
                                             </td>
-                                            <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500 dark:text-gray-300">{log.startTime}</td>
-                                            <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500 dark:text-gray-300">{log.endTime}</td>
+                                            <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500 dark:text-gray-300">
+                                                {isManual ? <span className="text-xs italic text-gray-400">-</span> : log.startTime}
+                                            </td>
+                                            <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500 dark:text-gray-300">
+                                                {isManual ? <span className="text-xs italic text-gray-400">-</span> : log.endTime}
+                                            </td>
                                             <td className={`whitespace-nowrap px-3 py-4 text-sm font-bold ${overtime >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                                 {overtime >= 0 ? '+' : ''}{overtime} h
+                                                {isManual && <span className="ml-1 text-xs font-normal text-gray-400">(ručno)</span>}
                                             </td>
                                             <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500 dark:text-gray-300 max-w-[200px] truncate">
                                                 {log.notes || '-'}
@@ -543,30 +563,62 @@ export default function WorkHoursPage() {
                                         className="block w-full rounded-md border-gray-300 shadow-sm p-3 bg-white dark:bg-gray-700 dark:text-white border text-base"
                                     />
                                 </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Start</label>
-                                    <input
-                                        type="text"
-                                        required
-                                        placeholder="HH:mm"
-                                        maxLength={5}
-                                        value={logForm.startTime}
-                                        onChange={(e) => setLogForm({ ...logForm, startTime: formatTimeInput(e.target.value) })}
-                                        className="block w-full rounded-md border-gray-300 shadow-sm p-3 bg-white dark:bg-gray-700 dark:text-white border text-base"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">End</label>
-                                    <input
-                                        type="text"
-                                        required
-                                        placeholder="HH:mm"
-                                        maxLength={5}
-                                        value={logForm.endTime}
-                                        onChange={(e) => setLogForm({ ...logForm, endTime: formatTimeInput(e.target.value) })}
-                                        className="block w-full rounded-md border-gray-300 shadow-sm p-3 bg-white dark:bg-gray-700 dark:text-white border text-base"
-                                    />
-                                </div>
+                                {!logForm.isManualEntry && (
+                                    <>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Start</label>
+                                            <input
+                                                type="text"
+                                                required={!logForm.isManualEntry}
+                                                placeholder="HH:mm"
+                                                maxLength={5}
+                                                value={logForm.startTime}
+                                                onChange={(e) => setLogForm({ ...logForm, startTime: formatTimeInput(e.target.value) })}
+                                                className="block w-full rounded-md border-gray-300 shadow-sm p-3 bg-white dark:bg-gray-700 dark:text-white border text-base"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">End</label>
+                                            <input
+                                                type="text"
+                                                required={!logForm.isManualEntry}
+                                                placeholder="HH:mm"
+                                                maxLength={5}
+                                                value={logForm.endTime}
+                                                onChange={(e) => setLogForm({ ...logForm, endTime: formatTimeInput(e.target.value) })}
+                                                className="block w-full rounded-md border-gray-300 shadow-sm p-3 bg-white dark:bg-gray-700 dark:text-white border text-base"
+                                            />
+                                        </div>
+                                    </>
+                                )}
+                                {logForm.isManualEntry && (
+                                    <div className="col-span-2">
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Prekovremeni sati</label>
+                                        <input
+                                            type="number"
+                                            step="0.5"
+                                            required={logForm.isManualEntry}
+                                            placeholder="npr. 2 ili -1"
+                                            value={logForm.manualOvertime}
+                                            onChange={(e) => setLogForm({ ...logForm, manualOvertime: e.target.value })}
+                                            className="block w-full rounded-md border-gray-300 shadow-sm p-3 bg-white dark:bg-gray-700 dark:text-white border text-base"
+                                        />
+                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Pozitivno za prekovremeno, negativno za skraćeno</p>
+                                    </div>
+                                )}
+                            </div>
+                            {/* Slobodan unos checkbox */}
+                            <div className="flex items-center gap-3">
+                                <input
+                                    type="checkbox"
+                                    id="isManualEntry"
+                                    checked={logForm.isManualEntry}
+                                    onChange={(e) => setLogForm({ ...logForm, isManualEntry: e.target.checked, startTime: "", endTime: "", manualOvertime: "" })}
+                                    className="h-5 w-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                />
+                                <label htmlFor="isManualEntry" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                    Slobodan unos (ručni unos prekovremenih sati)
+                                </label>
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Notes</label>

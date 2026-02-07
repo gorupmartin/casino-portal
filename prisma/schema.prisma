@@ -229,9 +229,11 @@ model WorkLog {
     technicianId Int
     technician   Technician @relation(fields: [technicianId], references: [id], onDelete: Cascade)
     date         DateTime   // Date of work
-    startTime    String     // HH:MM format
-    endTime      String     // HH:MM format
+    startTime    String?    // HH:MM format (optional when manualOvertime is used)
+    endTime      String?    // HH:MM format (optional when manualOvertime is used)
+    manualOvertime Decimal? // Manual overtime entry (bypasses start/end calculation)
     notes        String?
     
     // Overtime is calculated on the fly: (endTime - startTime) - 8 hours
+    // OR uses manualOvertime if set
 }

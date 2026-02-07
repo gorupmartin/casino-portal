@@ -39,9 +39,15 @@ export async function GET(request: Request) {
             let totalOvertimeHours = 0;
 
             tech.workLogs.forEach(log => {
-                const workedHours = calculateHoursWorked(log.startTime, log.endTime);
-                totalWorkedHours += workedHours;
-                totalOvertimeHours += (workedHours - 8); // Overtime = worked - 8
+                // If manualOvertime is set, use it directly
+                if (log.manualOvertime !== null && log.manualOvertime !== undefined) {
+                    totalOvertimeHours += Number(log.manualOvertime);
+                } else if (log.startTime && log.endTime) {
+                    // Otherwise calculate from start/end time
+                    const workedHours = calculateHoursWorked(log.startTime, log.endTime);
+                    totalWorkedHours += workedHours;
+                    totalOvertimeHours += (workedHours - 8); // Overtime = worked - 8
+                }
             });
 
             return {

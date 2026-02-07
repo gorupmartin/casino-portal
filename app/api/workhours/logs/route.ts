@@ -53,18 +53,27 @@ export async function POST(request: Request) {
     if (!canWrite) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     try {
-        const { technicianId, date, startTime, endTime, notes } = await request.json();
+        const { technicianId, date, startTime, endTime, manualOvertime, notes } = await request.json();
 
-        if (!technicianId || !date || !startTime || !endTime) {
-            return NextResponse.json({ error: "Technician, date, start time and end time required" }, { status: 400 });
+        // Validate: either manualOvertime OR both startTime and endTime must be provided
+        const hasManualOvertime = manualOvertime !== undefined && manualOvertime !== null && manualOvertime !== "";
+        const hasTimeRange = startTime && endTime;
+
+        if (!technicianId || !date) {
+            return NextResponse.json({ error: "Technician and date are required" }, { status: 400 });
+        }
+
+        if (!hasManualOvertime && !hasTimeRange) {
+            return NextResponse.json({ error: "Either manual overtime or start/end time is required" }, { status: 400 });
         }
 
         const log = await prisma.workLog.create({
             data: {
                 technicianId: Number(technicianId),
                 date: new Date(date),
-                startTime,
-                endTime,
+                startTime: hasManualOvertime ? null : startTime,
+                endTime: hasManualOvertime ? null : endTime,
+                manualOvertime: hasManualOvertime ? Number(manualOvertime) : null,
                 notes: notes || null
             },
             include: { technician: true }
@@ -80,8 +89,8 @@ export async function POST(request: Request) {
             action: "CREATE",
             tableName: "WorkLog",
             recordId: log.id,
-            newValue: { technicianId, date, startTime, endTime, notes, technicianName: `${log.technician.firstName} ${log.technician.lastName}` },
-            description: `Created work log for ${log.technician.firstName} ${log.technician.lastName} on ${date}`
+            newValue: { technicianId, date, startTime, endTime, manualOvertime, notes, technicianName: `${log.technician.firstName} ${log.technician.lastName}` },
+            description: `Created work log for ${log.technician.firstName} ${log.technician.lastName} on ${date}${hasManualOvertime ? ' (manual entry)' : ''}`
         });
 
         return NextResponse.json(log);
@@ -102,9 +111,11 @@ export async function PUT(request: Request) {
     if (!canWrite) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     try {
-        const { id, startTime, endTime, notes } = await request.json();
+        const { id, startTime, endTime, manualOvertime, notes } = await request.json();
 
         if (!id) return NextResponse.json({ error: "ID required" }, { status: 400 });
+
+        const hasManualOvertime = manualOvertime !== undefined && manualOvertime !== null && manualOvertime !== "";
 
         // Get old value
         const oldLog = await prisma.workLog.findUnique({
@@ -114,7 +125,12 @@ export async function PUT(request: Request) {
 
         const log = await prisma.workLog.update({
             where: { id: Number(id) },
-            data: { startTime, endTime, notes },
+            data: {
+                startTime: hasManualOvertime ? null : startTime,
+                endTime: hasManualOvertime ? null : endTime,
+                manualOvertime: hasManualOvertime ? Number(manualOvertime) : null,
+                notes
+            },
             include: { technician: true }
         });
 
@@ -128,9 +144,9 @@ export async function PUT(request: Request) {
             action: "UPDATE",
             tableName: "WorkLog",
             recordId: log.id,
-            oldValue: { startTime: oldLog?.startTime, endTime: oldLog?.endTime, notes: oldLog?.notes },
-            newValue: { startTime, endTime, notes },
-            description: `Updated work log for ${log.technician.firstName} ${log.technician.lastName}: ${oldLog?.startTime}-${oldLog?.endTime} → ${startTime}-${endTime}`
+            oldValue: { startTime: oldLog?.startTime, endTime: oldLog?.endTime, manualOvertime: oldLog?.manualOvertime, notes: oldLog?.notes },
+            newValue: { startTime, endTime, manualOvertime, notes },
+            description: `Updated work log for ${log.technician.firstName} ${log.technician.lastName}${hasManualOvertime ? ' (manual entry)' : ''}`
         });
 
         return NextResponse.json(log);

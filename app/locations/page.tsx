@@ -153,15 +153,15 @@ export default function LocationsPage() {
 
                 {/* List */}
                 <div className="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
-                    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                    <table className="w-full table-fixed divide-y divide-gray-200 dark:divide-gray-700">
                         <thead className="bg-gray-50 dark:bg-gray-700">
                             <tr>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">ID</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Name</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Type</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Status</th>
+                                <th className="w-[8%] px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">ID</th>
+                                <th className="w-[42%] px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Name</th>
+                                <th className="w-[15%] px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Type</th>
+                                <th className="w-[15%] px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Status</th>
                                 {canWrite() && (
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Actions</th>
+                                    <th className="w-[20%] px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Actions</th>
                                 )}
                             </tr>
                         </thead>
@@ -171,7 +171,7 @@ export default function LocationsPage() {
                             ) : locations.map((loc) => (
                                 <tr key={loc.id} className={loc.status === "CLOSED" ? "opacity-60 bg-gray-50 dark:bg-gray-900" : ""}>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{loc.id}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{loc.name} {loc.status === "CLOSED" && "(Closed)"}</td>
+                                    <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white break-words">{loc.name} {loc.status === "CLOSED" && "(Closed)"}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                                         <span className="bg-gray-100 text-gray-800 text-xs font-medium me-2 px-2.5 py-0.5 rounded dark:bg-gray-700 dark:text-gray-300">
                                             {loc.locationType.name}

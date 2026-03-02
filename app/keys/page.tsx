@@ -158,18 +158,18 @@ export default function AssignmentsPage() {
                         )}
                     </form>
 
-                    <div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5 sm:rounded-lg">
-                        <table className="min-w-full divide-y divide-gray-300 dark:divide-gray-700">
+                    <div className="overflow-x-auto shadow ring-1 ring-black ring-opacity-5 sm:rounded-lg">
+                        <table className="w-full table-fixed divide-y divide-gray-300 dark:divide-gray-700">
                             <thead className="bg-gray-50 dark:bg-gray-800">
                                 <tr className="divide-x divide-gray-200 dark:divide-gray-700">
-                                    <th className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 dark:text-white">Location</th>
-                                    <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">Type</th>
-                                    <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">Key Code</th>
-                                    <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">Counts (S/G)</th>
-                                    <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">Purpose</th>
-                                    <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">Position</th>
+                                    <th className="w-[30%] py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 dark:text-white">Location</th>
+                                    <th className="w-[12%] px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">Type</th>
+                                    <th className="w-[12%] px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">Key Code</th>
+                                    <th className="w-[12%] px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">Counts (S/G)</th>
+                                    <th className="w-[10%] px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">Purpose</th>
+                                    <th className="w-[10%] px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">Position</th>
                                     {canWrite() && (
-                                        <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">Actions</th>
+                                        <th className="w-[14%] px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">Actions</th>
                                     )}
                                 </tr>
                             </thead>
@@ -178,7 +178,7 @@ export default function AssignmentsPage() {
                                     <tr><td colSpan={7} className="py-4 text-center">Loading...</td></tr>
                                 ) : assignments.map((a) => (
                                     <tr key={a.id} className="divide-x divide-gray-200 dark:divide-gray-700">
-                                        <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 dark:text-white">
+                                        <td className="py-4 pl-4 pr-3 text-sm font-medium text-gray-900 dark:text-white break-words">
                                             {a.location.name}
                                             <span className={`ml-2 px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${a.location.status === 'OPEN' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                                                 }`}>

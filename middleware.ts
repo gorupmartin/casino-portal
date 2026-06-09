@@ -6,4 +6,9 @@ export default withAuth({
     },
 })
 
-export const config = { matcher: ["/", "/keys", "/certificates", "/api/keys/:path*", "/api/certificates/:path*"] }
+export const config = {
+    matcher: [
+        // Protect everything except the login page, NextAuth endpoints, and static assets
+        "/((?!api/auth|login|_next/static|_next/image|favicon.ico).*)",
+    ],
+}

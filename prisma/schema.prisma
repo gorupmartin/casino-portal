@@ -121,7 +121,9 @@ model CertificateDefinition {
     name         String   @unique // NazivCertifikata (e.g. Class Number)
     recognizedHr Boolean  @default(true) // PriznatHR
     forSlovenia  Boolean  @default(false) // ZaSloveniju
-    filePath     String?  // PutanjaDatoteke
+    filePath     String?  // Certifikat (glavni dokument certifikata)
+    potvrdaPath  String?  // Potvrda
+    reportPath   String?  // Report
     isActive     Boolean  @default(true)
 
     // Direct Relations (1 Certificate = 1 Game + 1 Board)

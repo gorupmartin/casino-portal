@@ -83,7 +83,12 @@ export async function POST(request: Request) {
 
     try {
         const body = await request.json();
-        const { name, recognizedHr, forSlovenia, filePath, gameId, boardId, cabinetIds } = body;
+        const { name, recognizedHr, forSlovenia, filePath, potvrdaPath, reportPath, gameId, boardId, cabinetIds } = body;
+
+        // Validation: Certifikat file is required (Potvrda/Report are optional)
+        if (!filePath) {
+            return NextResponse.json({ error: "Certifikat datoteka je obavezna." }, { status: 400 });
+        }
 
         // Validation: Unique Name
         const existing = await prisma.certificateDefinition.findUnique({
@@ -100,6 +105,8 @@ export async function POST(request: Request) {
                 recognizedHr,
                 forSlovenia,
                 filePath,
+                potvrdaPath,
+                reportPath,
                 gameId: Number(gameId),
                 boardId: Number(boardId),
                 cabinets: {
@@ -148,7 +155,7 @@ export async function PUT(request: Request) {
 
     try {
         const body = await request.json();
-        const { id, isActive, recognizedHr, forSlovenia, filePath, cabinetIds } = body;
+        const { id, isActive, recognizedHr, forSlovenia, filePath, potvrdaPath, reportPath, cabinetIds } = body;
 
         if (!id) return NextResponse.json({ error: "ID required" }, { status: 400 });
 
@@ -164,6 +171,8 @@ export async function PUT(request: Request) {
         if (recognizedHr !== undefined) updateData.recognizedHr = recognizedHr;
         if (forSlovenia !== undefined) updateData.forSlovenia = forSlovenia;
         if (filePath !== undefined) updateData.filePath = filePath;
+        if (potvrdaPath !== undefined) updateData.potvrdaPath = potvrdaPath;
+        if (reportPath !== undefined) updateData.reportPath = reportPath;
 
         // If cabinetIds provided, update the cabinets
         if (cabinetIds !== undefined && Array.isArray(cabinetIds)) {

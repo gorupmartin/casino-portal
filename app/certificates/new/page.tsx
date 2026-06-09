@@ -20,6 +20,8 @@ export default function NewCertificatePage() {
         recognizedHr: true,
         forSlovenia: false,
         filePath: "",
+        potvrdaPath: "",
+        reportPath: "",
         gameId: "",
         boardId: "",
         cabinetIds: [] as string[] // Array of selected IDs
@@ -55,7 +57,10 @@ export default function NewCertificatePage() {
         });
     };
 
-    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileUpload = async (
+        e: React.ChangeEvent<HTMLInputElement>,
+        field: "filePath" | "potvrdaPath" | "reportPath"
+    ) => {
         if (!e.target.files || e.target.files.length === 0) return;
         const file = e.target.files[0];
         const data = new FormData();
@@ -69,7 +74,7 @@ export default function NewCertificatePage() {
             });
             const json = await res.json();
             if (json.success) {
-                setFormData(prev => ({ ...prev, filePath: json.url }));
+                setFormData(prev => ({ ...prev, [field]: json.url }));
             } else {
                 alert("Upload failed");
             }
@@ -80,10 +85,38 @@ export default function NewCertificatePage() {
         setUploading(false);
     };
 
+    const renderUpload = (label: string, field: "filePath" | "potvrdaPath" | "reportPath", required = false) => (
+        <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                {label}{required && <span className="text-red-500"> *</span>}
+            </label>
+            <input
+                type="file"
+                accept=".pdf,.jpg,.jpeg,.png,.webp"
+                onChange={(e) => handleFileUpload(e, field)}
+                className="mt-1 block w-full text-sm text-gray-500
+                    file:mr-4 file:py-2 file:px-4
+                    file:rounded-md file:border-0
+                    file:text-sm file:font-semibold
+                    file:bg-indigo-50 file:text-indigo-700
+                    hover:file:bg-indigo-100 dark:file:bg-gray-700 dark:file:text-gray-300"
+            />
+            {formData[field] && (
+                <p className="mt-2 text-xs text-green-600 dark:text-green-400">
+                    ✓ <a href={formData[field]} target="_blank" className="underline">{formData[field].split('/').pop()}</a>
+                </p>
+            )}
+        </div>
+    );
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!formData.name || !formData.gameId || !formData.boardId || formData.cabinetIds.length === 0) {
             alert("Please fill all required fields and select at least one cabinet.");
+            return;
+        }
+        if (!formData.filePath) {
+            alert("Certifikat datoteka je obavezna.");
             return;
         }
 
@@ -113,39 +146,27 @@ export default function NewCertificatePage() {
                 <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-800 shadow rounded-lg p-6 space-y-6">
 
                     {/* Basic Info */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Certificate Name / Number</label>
-                            <input
-                                type="text"
-                                required
-                                value={formData.name}
-                                onChange={e => setFormData({ ...formData, name: e.target.value })}
-                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 bg-white dark:bg-gray-700 dark:text-white border"
-                            />
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Certificate Name / Number</label>
+                        <input
+                            type="text"
+                            required
+                            value={formData.name}
+                            onChange={e => setFormData({ ...formData, name: e.target.value })}
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 bg-white dark:bg-gray-700 dark:text-white border"
+                        />
+                    </div>
+
+                    {/* Files */}
+                    <div>
+                        <div className="flex items-center gap-3 mb-2">
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Datoteke (PDF ili slika)</label>
+                            {uploading && <span className="text-sm text-gray-500">Uploading...</span>}
                         </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">File Path (Upload)</label>
-                            <div className="mt-1 flex items-center gap-4">
-                                <input
-                                    type="file"
-                                    accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-                                    onChange={handleFileUpload}
-                                    className="block w-full text-sm text-gray-500
-                                        file:mr-4 file:py-2 file:px-4
-                                        file:rounded-md file:border-0
-                                        file:text-sm file:font-semibold
-                                        file:bg-indigo-50 file:text-indigo-700
-                                        hover:file:bg-indigo-100 dark:file:bg-gray-700 dark:file:text-gray-300"
-                                />
-                                {uploading && <span className="text-sm text-gray-500">Uploading...</span>}
-                            </div>
-                            {formData.filePath && (
-                                <p className="mt-2 text-xs text-green-600 dark:text-green-400">
-                                    ✓ File uploaded: <a href={formData.filePath} target="_blank" className="underline">{formData.filePath.split('/').pop()}</a>
-                                </p>
-                            )}
-                            <input type="hidden" value={formData.filePath} />
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            {renderUpload("Certifikat", "filePath", true)}
+                            {renderUpload("Potvrda", "potvrdaPath")}
+                            {renderUpload("Report", "reportPath")}
                         </div>
                     </div>
 

@@ -158,12 +158,17 @@ export default function CertificatesPage() {
             recognizedHr: cert.recognizedHr,
             forSlovenia: cert.forSlovenia,
             filePath: cert.filePath,
+            potvrdaPath: cert.potvrdaPath,
+            reportPath: cert.reportPath,
             cabinetIds: cert.cabinets?.map((c: any) => c.cabinet.id) || []
         });
         setEditModalOpen(true);
     };
 
-    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileUpload = async (
+        e: React.ChangeEvent<HTMLInputElement>,
+        field: "filePath" | "potvrdaPath" | "reportPath"
+    ) => {
         if (!e.target.files || e.target.files.length === 0) return;
         const file = e.target.files[0];
         const data = new FormData();
@@ -177,7 +182,7 @@ export default function CertificatesPage() {
             });
             const json = await res.json();
             if (json.success) {
-                setEditData((prev: any) => ({ ...prev, filePath: json.url }));
+                setEditData((prev: any) => ({ ...prev, [field]: json.url }));
             } else {
                 alert("Upload failed");
             }
@@ -187,6 +192,28 @@ export default function CertificatesPage() {
         }
         setUploading(false);
     };
+
+    const renderUpload = (label: string, field: "filePath" | "potvrdaPath" | "reportPath") => (
+        <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">{label}</label>
+            <input
+                type="file"
+                accept=".pdf,.jpg,.jpeg,.png,.webp"
+                onChange={(e) => handleFileUpload(e, field)}
+                className="mt-1 block w-full text-sm text-gray-500
+                    file:mr-4 file:py-2 file:px-4
+                    file:rounded-md file:border-0
+                    file:text-sm file:font-semibold
+                    file:bg-indigo-50 file:text-indigo-700
+                    hover:file:bg-indigo-100 dark:file:bg-gray-700 dark:file:text-gray-300"
+            />
+            <div className="mt-1 text-xs text-gray-500 break-all">
+                {editData?.[field] ? (
+                    <a href={editData[field]} target="_blank" className="text-indigo-600 underline">{editData[field].split('/').pop()}</a>
+                ) : "None"}
+            </div>
+        </div>
+    );
 
     const handleSaveEdit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -198,6 +225,8 @@ export default function CertificatesPage() {
                 recognizedHr: editData.recognizedHr,
                 forSlovenia: editData.forSlovenia,
                 filePath: editData.filePath,
+                potvrdaPath: editData.potvrdaPath,
+                reportPath: editData.reportPath,
                 cabinetIds: editData.cabinetIds
             })
         });
@@ -338,7 +367,13 @@ export default function CertificatesPage() {
                                         Certificate
                                     </th>
                                     <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
-                                        Document
+                                        Certifikat
+                                    </th>
+                                    <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
+                                        Potvrda
+                                    </th>
+                                    <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
+                                        Report
                                     </th>
                                     <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
                                         Game (Igra)
@@ -358,11 +393,11 @@ export default function CertificatesPage() {
                             <tbody className="divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-900">
                                 {loading ? (
                                     <tr>
-                                        <td colSpan={7} className="py-4 text-center text-sm text-gray-500">Loading...</td>
+                                        <td colSpan={9} className="py-4 text-center text-sm text-gray-500">Loading...</td>
                                     </tr>
                                 ) : certificates.length === 0 ? (
                                     <tr>
-                                        <td colSpan={7} className="py-4 text-center text-sm text-gray-500">No certificates found.</td>
+                                        <td colSpan={9} className="py-4 text-center text-sm text-gray-500">No certificates found.</td>
                                     </tr>
                                 ) : (
                                     certificates.map((cert) => (
@@ -377,6 +412,20 @@ export default function CertificatesPage() {
                                             <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500 dark:text-gray-300">
                                                 {cert.filePath ? (
                                                     <a href={cert.filePath} target="_blank" className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 font-medium">
+                                                        Open 📄
+                                                    </a>
+                                                ) : <span className="text-gray-300">-</span>}
+                                            </td>
+                                            <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500 dark:text-gray-300">
+                                                {cert.potvrdaPath ? (
+                                                    <a href={cert.potvrdaPath} target="_blank" className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 font-medium">
+                                                        Open 📄
+                                                    </a>
+                                                ) : <span className="text-gray-300">-</span>}
+                                            </td>
+                                            <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500 dark:text-gray-300">
+                                                {cert.reportPath ? (
+                                                    <a href={cert.reportPath} target="_blank" className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 font-medium">
                                                         Open 📄
                                                     </a>
                                                 ) : <span className="text-gray-300">-</span>}
@@ -457,23 +506,14 @@ export default function CertificatesPage() {
                             </div>
 
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">File Path (Upload New)</label>
-                                <div className="mt-1 flex items-center gap-4">
-                                    <input
-                                        type="file"
-                                        accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-                                        onChange={handleFileUpload}
-                                        className="block w-full text-sm text-gray-500
-                                            file:mr-4 file:py-2 file:px-4
-                                            file:rounded-md file:border-0
-                                            file:text-sm file:font-semibold
-                                            file:bg-indigo-50 file:text-indigo-700
-                                            hover:file:bg-indigo-100 dark:file:bg-gray-700 dark:file:text-gray-300"
-                                    />
+                                <div className="flex items-center gap-3 mb-2">
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Datoteke (PDF ili slika)</label>
                                     {uploading && <span className="text-sm text-gray-500">Uploading...</span>}
                                 </div>
-                                <div className="mt-2 text-xs text-gray-500 break-all">
-                                    Current: {editData.filePath || "None"}
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                    {renderUpload("Certifikat", "filePath")}
+                                    {renderUpload("Potvrda", "potvrdaPath")}
+                                    {renderUpload("Report", "reportPath")}
                                 </div>
                             </div>
 

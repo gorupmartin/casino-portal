@@ -52,6 +52,7 @@ export default function Home() {
     // Calculate visible tabs for dynamic centering
     const visibleTabs = [
         canViewModule("workhours"),
+        canViewModule("workhours_warehouse"),
         canViewModule("keys"),
         canViewModule("certificates"),
         isAdmin
@@ -67,8 +68,10 @@ export default function Home() {
             case 3:
                 return "grid-cols-1 sm:grid-cols-3 max-w-4xl";
             case 4:
-            default:
                 return "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 max-w-5xl";
+            case 5:
+            default:
+                return "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 max-w-5xl";
         }
     };
 
@@ -118,6 +121,23 @@ export default function Home() {
                         </h2>
                         <p className="m-0 max-w-[30ch] text-sm opacity-50 text-gray-400 mx-auto">
                             Track Technician Hours, Work Logs, and Overtime.
+                        </p>
+                    </Link>
+                )}
+
+                {canViewModule("workhours_warehouse") && (
+                    <Link
+                        href="/workhours-warehouse"
+                        className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-neutral-700 hover:bg-neutral-800/30"
+                    >
+                        <h2 className="mb-3 text-2xl font-semibold text-gray-100">
+                            Working Hours Warehouse{" "}
+                            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
+                                -&gt;
+                            </span>
+                        </h2>
+                        <p className="m-0 max-w-[30ch] text-sm opacity-50 text-gray-400 mx-auto">
+                            Track Warehouse Worker Hours, Work Logs, and Overtime.
                         </p>
                     </Link>
                 )}

@@ -26,7 +26,7 @@ model UserPermission {
   userId   Int
   user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   
-  module   String  // "keys", "certificates", "workhours"
+  module   String  // "keys", "certificates", "workhours", "workhours_warehouse"
   canView  Boolean @default(false)
   canWrite Boolean @default(false)
   
@@ -236,6 +236,38 @@ model WorkLog {
     manualOvertime Decimal? // Manual overtime entry (bypasses start/end calculation)
     notes        String?
     
+    // Overtime is calculated on the fly: (endTime - startTime) - 8 hours
+    // OR uses manualOvertime if set
+}
+
+// Working Hours Warehouse Module
+model WarehouseWorker {
+    id        Int      @id @default(autoincrement())
+    firstName String
+    lastName  String
+    isActive  Boolean  @default(true)
+
+    initialHours  WarehouseInitialHours?
+    workLogs      WarehouseWorkLog[]
+}
+
+model WarehouseInitialHours {
+    id       Int             @id @default(autoincrement())
+    workerId Int             @unique
+    worker   WarehouseWorker @relation(fields: [workerId], references: [id], onDelete: Cascade)
+    hours    Decimal         @default(0) // Starting balance in hours
+}
+
+model WarehouseWorkLog {
+    id       Int             @id @default(autoincrement())
+    workerId Int
+    worker   WarehouseWorker @relation(fields: [workerId], references: [id], onDelete: Cascade)
+    date     DateTime   // Date of work
+    startTime      String?  // HH:MM format (optional when manualOvertime is used)
+    endTime        String?  // HH:MM format (optional when manualOvertime is used)
+    manualOvertime Decimal? // Manual overtime entry (bypasses start/end calculation)
+    notes          String?
+
     // Overtime is calculated on the fly: (endTime - startTime) - 8 hours
     // OR uses manualOvertime if set
 }

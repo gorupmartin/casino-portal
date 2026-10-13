@@ -147,7 +147,7 @@ export default function Navbar() {
                             )}
 
                             {/* Working Hours Module Links */}
-                            {pathname.startsWith("/workhours") && (
+                            {pathname.startsWith("/workhours") && !pathname.startsWith("/workhours-warehouse") && (
                                 <>
                                     <Link
                                         href="/workhours?tab=summary"
@@ -171,6 +171,43 @@ export default function Navbar() {
                                             </Link>
                                             <Link
                                                 href="/workhours/dictionaries"
+                                                className={`inline-flex items-center border-b-2 px-1 pt-1 text-sm font-medium ${pathname.includes("/dictionaries")
+                                                    ? "border-indigo-500 text-gray-900 dark:text-white"
+                                                    : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-300 dark:hover:text-white"
+                                                    }`}
+                                            >
+                                                Dictionaries
+                                            </Link>
+                                        </>
+                                    )}
+                                </>
+                            )}
+
+                            {/* Working Hours Warehouse Module Links */}
+                            {pathname.startsWith("/workhours-warehouse") && (
+                                <>
+                                    <Link
+                                        href="/workhours-warehouse?tab=summary"
+                                        className={`inline-flex items-center border-b-2 px-1 pt-1 text-sm font-medium ${isActive("/workhours-warehouse") && (currentTab === "summary" || currentTab === null) && !pathname.includes("/dictionaries")
+                                            ? "border-indigo-500 text-gray-900 dark:text-white"
+                                            : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-300 dark:hover:text-white"
+                                            }`}
+                                    >
+                                        Summary
+                                    </Link>
+                                    {canWriteModule("workhours_warehouse") && (
+                                        <>
+                                            <Link
+                                                href="/workhours-warehouse?tab=logs"
+                                                className={`inline-flex items-center border-b-2 px-1 pt-1 text-sm font-medium ${isActive("/workhours-warehouse") && currentTab === "logs"
+                                                    ? "border-indigo-500 text-gray-900 dark:text-white"
+                                                    : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-300 dark:hover:text-white"
+                                                    }`}
+                                            >
+                                                Working Hours
+                                            </Link>
+                                            <Link
+                                                href="/workhours-warehouse/dictionaries"
                                                 className={`inline-flex items-center border-b-2 px-1 pt-1 text-sm font-medium ${pathname.includes("/dictionaries")
                                                     ? "border-indigo-500 text-gray-900 dark:text-white"
                                                     : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-300 dark:hover:text-white"

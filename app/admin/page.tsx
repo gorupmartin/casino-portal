@@ -6,7 +6,7 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
-type Module = "keys" | "certificates" | "workhours";
+type Module = "keys" | "certificates" | "workhours" | "workhours_warehouse";
 
 interface Permission {
     module: Module;
@@ -27,6 +27,7 @@ const MODULES: { id: Module; name: string }[] = [
     { id: "keys", name: "Keys" },
     { id: "certificates", name: "Certificates" },
     { id: "workhours", name: "Working Hours" },
+    { id: "workhours_warehouse", name: "Working Hours Warehouse" },
 ];
 
 export default function AdminPage() {
@@ -252,14 +253,15 @@ export default function AdminPage() {
                                 <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">Keys</th>
                                 <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">Certificates</th>
                                 <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">Working Hours</th>
+                                <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">Working Hours Warehouse</th>
                                 <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-900">
                             {loading ? (
-                                <tr><td colSpan={7} className="py-4 text-center">Loading...</td></tr>
+                                <tr><td colSpan={8} className="py-4 text-center">Loading...</td></tr>
                             ) : filteredUsers.length === 0 ? (
-                                <tr><td colSpan={7} className="py-4 text-center text-gray-500">No users found.</td></tr>
+                                <tr><td colSpan={8} className="py-4 text-center text-gray-500">No users found.</td></tr>
                             ) : filteredUsers.map((user) => {
                                 const getPermDisplay = (module: Module) => {
                                     if (user.role === "ADMIN") return "Full Access";
@@ -297,6 +299,9 @@ export default function AdminPage() {
                                         </td>
                                         <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500 dark:text-gray-300">
                                             {getPermDisplay("workhours")}
+                                        </td>
+                                        <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500 dark:text-gray-300">
+                                            {getPermDisplay("workhours_warehouse")}
                                         </td>
                                         <td className="whitespace-nowrap px-3 py-4 text-sm">
                                             <button

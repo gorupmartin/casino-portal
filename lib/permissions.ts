@@ -1,6 +1,6 @@
 import prisma from "./prisma";
 
-export type Module = "keys" | "certificates" | "workhours";
+export type Module = "keys" | "certificates" | "workhours" | "workhours_warehouse";
 export type Permission = "view" | "write";
 
 export interface UserPermissionData {

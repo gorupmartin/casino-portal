@@ -1,0 +1,384 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import Navbar from "@/components/Navbar";
+import { useSession } from "next-auth/react";
+
+type DictionaryType = "workers" | "initial-hours";
+
+interface Permission {
+    module: string;
+    canView: boolean;
+    canWrite: boolean;
+}
+
+export default function WorkHoursWarehouseDictionaryManager() {
+    const { data: session, status } = useSession();
+    const [permissions, setPermissions] = useState<Permission[]>([]);
+
+    // @ts-ignore
+    const isAdmin = session?.user?.role === "ADMIN";
+
+    const [activeTab, setActiveTab] = useState<DictionaryType>("workers");
+    const [workers, setWorkers] = useState<any[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [search, setSearch] = useState("");
+
+    // Modal State
+    const [modalOpen, setModalOpen] = useState(false);
+    const [workerForm, setWorkerForm] = useState({ firstName: "", lastName: "" });
+    const [initialForm, setInitialForm] = useState({ workerId: "", hours: "" });
+
+    // Fetch permissions for non-admin users
+    useEffect(() => {
+        const fetchPermissions = async () => {
+            if (status === "authenticated" && !isAdmin) {
+                try {
+                    const res = await fetch("/api/user/permissions");
+                    if (res.ok) {
+                        const data = await res.json();
+                        setPermissions(data.permissions || []);
+                    }
+                } catch (error) {
+                    console.error("Error fetching permissions:", error);
+                }
+            }
+        };
+
+        if (status !== "loading") {
+            fetchPermissions();
+        }
+    }, [status, isAdmin]);
+
+    const canWrite = () => {
+        if (isAdmin) return true;
+        const perm = permissions.find(p => p.module === "workhours_warehouse");
+        return perm?.canWrite || false;
+    };
+
+    const fetchWorkers = async () => {
+        setLoading(true);
+        const res = await fetch("/api/workhours-warehouse/workers");
+        if (res.ok) setWorkers(await res.json());
+        setLoading(false);
+    };
+
+    useEffect(() => {
+        fetchWorkers();
+    }, []);
+
+    const filteredWorkers = workers.filter(t =>
+        t.firstName.toLowerCase().includes(search.toLowerCase()) ||
+        t.lastName.toLowerCase().includes(search.toLowerCase())
+    );
+
+    const activeWorkers = workers.filter(t => t.isActive);
+
+    const handleAddWorker = async (e: React.FormEvent) => {
+        e.preventDefault();
+        const res = await fetch("/api/workhours-warehouse/workers", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(workerForm)
+        });
+        if (res.ok) {
+            setModalOpen(false);
+            setWorkerForm({ firstName: "", lastName: "" });
+            fetchWorkers();
+        } else {
+            alert("Failed to add worker");
+        }
+    };
+
+    const handleToggleWorker = async (worker: any) => {
+        const res = await fetch("/api/workhours-warehouse/workers", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: worker.id, isActive: !worker.isActive })
+        });
+        if (res.ok) {
+            fetchWorkers();
+        }
+    };
+
+    const handleSetInitialHours = async (e: React.FormEvent) => {
+        e.preventDefault();
+        const res = await fetch("/api/workhours-warehouse/initial-hours", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(initialForm)
+        });
+        if (res.ok) {
+            setModalOpen(false);
+            setInitialForm({ workerId: "", hours: "" });
+            fetchWorkers();
+        } else {
+            alert("Failed to set initial hours");
+        }
+    };
+
+    const openModal = () => {
+        if (activeTab === "workers") {
+            setWorkerForm({ firstName: "", lastName: "" });
+        } else {
+            setInitialForm({ workerId: "", hours: "" });
+        }
+        setModalOpen(true);
+    };
+
+    // Loading state
+    if (status === "loading") {
+        return (
+            <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+                <Navbar />
+                <div className="flex items-center justify-center h-96">
+                    <p className="text-gray-500">Loading...</p>
+                </div>
+            </div>
+        );
+    }
+
+    // Access check - allow users with canWrite permission
+    if (!canWrite()) {
+        return (
+            <div className="min-h-screen bg-gray-50 flex flex-col">
+                <Navbar />
+                <div className="flex-grow flex items-center justify-center">
+                    <p className="text-gray-500">Authorized access only.</p>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+            <Navbar />
+            <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Working Hours Warehouse Dictionaries</h1>
+                    <button
+                        onClick={openModal}
+                        className="mt-4 md:mt-0 bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"
+                    >
+                        {activeTab === "workers" ? "Add Worker" : "Set Initial Hours"}
+                    </button>
+                </div>
+
+                {/* Tabs */}
+                <div className="border-b border-gray-200 dark:border-gray-700 mb-6">
+                    <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+                        {[
+                            { id: "workers", name: "Workers" },
+                            { id: "initial-hours", name: "Initial Hours" },
+                        ].map((tab) => (
+                            <button
+                                key={tab.id}
+                                onClick={() => setActiveTab(tab.id as DictionaryType)}
+                                className={`${activeTab === tab.id
+                                    ? "border-indigo-500 text-indigo-600 dark:text-indigo-400"
+                                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300"
+                                    } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm capitalize`}
+                            >
+                                {tab.name}
+                            </button>
+                        ))}
+                    </nav>
+                </div>
+
+                {/* Search */}
+                <div className="mb-4">
+                    <input
+                        type="text"
+                        placeholder="Search..."
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        className="w-full max-w-xs rounded-md border-gray-300 shadow-sm p-2 bg-white dark:bg-gray-700 dark:text-white border"
+                    />
+                </div>
+
+                {/* WORKERS TAB */}
+                {activeTab === "workers" && (
+                    <div className="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
+                        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                            <thead className="bg-gray-50 dark:bg-gray-700">
+                                <tr>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">First Name</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Last Name</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Status</th>
+                                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                                {loading ? (
+                                    <tr><td colSpan={4} className="p-4 text-center">Loading...</td></tr>
+                                ) : filteredWorkers.length === 0 ? (
+                                    <tr><td colSpan={4} className="p-4 text-center text-gray-500">No workers found.</td></tr>
+                                ) : filteredWorkers.map((worker) => (
+                                    <tr key={worker.id} className={worker.isActive === false ? 'bg-red-50 dark:bg-red-900/10' : ''}>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                                            {worker.firstName}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                                            {worker.lastName}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                                            {worker.isActive !== false ? (
+                                                <span className="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">Active</span>
+                                            ) : (
+                                                <span className="inline-flex items-center rounded-md bg-red-50 px-2 py-1 text-xs font-medium text-red-700 ring-1 ring-inset ring-red-600/10">Inactive</span>
+                                            )}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                            <button
+                                                onClick={() => handleToggleWorker(worker)}
+                                                className={`${worker.isActive !== false ? 'text-red-600 hover:text-red-900 dark:text-red-400' : 'text-green-600 hover:text-green-900 dark:text-green-400'}`}
+                                            >
+                                                {worker.isActive !== false ? "Block" : "Unblock"}
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+
+                {/* INITIAL HOURS TAB */}
+                {activeTab === "initial-hours" && (
+                    <div className="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
+                        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                            <thead className="bg-gray-50 dark:bg-gray-700">
+                                <tr>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Worker</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Initial Hours</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                                {loading ? (
+                                    <tr><td colSpan={3} className="p-4 text-center">Loading...</td></tr>
+                                ) : activeWorkers.length === 0 ? (
+                                    <tr><td colSpan={3} className="p-4 text-center text-gray-500">No active workers.</td></tr>
+                                ) : activeWorkers.filter(t =>
+                                    t.firstName.toLowerCase().includes(search.toLowerCase()) ||
+                                    t.lastName.toLowerCase().includes(search.toLowerCase())
+                                ).map((worker) => (
+                                    <tr key={worker.id}>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                                            {worker.firstName} {worker.lastName}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300 font-semibold">
+                                            {worker.initialHours?.hours ? Number(worker.initialHours.hours) : 0} h
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                                            <span className="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">Active</span>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </main>
+
+            {/* Modal for Adding Worker */}
+            {modalOpen && activeTab === "workers" && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full">
+                        <h3 className="text-lg font-bold mb-4 text-gray-900 dark:text-white">Add New Worker</h3>
+                        <form onSubmit={handleAddWorker} className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">First Name</label>
+                                <input
+                                    type="text"
+                                    required
+                                    value={workerForm.firstName}
+                                    onChange={(e) => setWorkerForm({ ...workerForm, firstName: e.target.value })}
+                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 bg-white dark:bg-gray-700 dark:text-white border"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Last Name</label>
+                                <input
+                                    type="text"
+                                    required
+                                    value={workerForm.lastName}
+                                    onChange={(e) => setWorkerForm({ ...workerForm, lastName: e.target.value })}
+                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 bg-white dark:bg-gray-700 dark:text-white border"
+                                />
+                            </div>
+
+                            <div className="flex justify-end gap-3 mt-6">
+                                <button
+                                    type="button"
+                                    onClick={() => setModalOpen(false)}
+                                    className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded dark:text-gray-300 dark:hover:bg-gray-700"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"
+                                >
+                                    Create
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal for Setting Initial Hours */}
+            {modalOpen && activeTab === "initial-hours" && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full">
+                        <h3 className="text-lg font-bold mb-4 text-gray-900 dark:text-white">Set Initial Hours</h3>
+                        <form onSubmit={handleSetInitialHours} className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Worker</label>
+                                <select
+                                    required
+                                    value={initialForm.workerId}
+                                    onChange={(e) => setInitialForm({ ...initialForm, workerId: e.target.value })}
+                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 bg-white dark:bg-gray-700 dark:text-white border"
+                                >
+                                    <option value="">Select...</option>
+                                    {activeWorkers.map(t => (
+                                        <option key={t.id} value={t.id}>{t.firstName} {t.lastName}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Initial Hours</label>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    required
+                                    value={initialForm.hours}
+                                    onChange={(e) => setInitialForm({ ...initialForm, hours: e.target.value })}
+                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 bg-white dark:bg-gray-700 dark:text-white border"
+                                />
+                            </div>
+
+                            <div className="flex justify-end gap-3 mt-6">
+                                <button
+                                    type="button"
+                                    onClick={() => setModalOpen(false)}
+                                    className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded dark:text-gray-300 dark:hover:bg-gray-700"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"
+                                >
+                                    Save
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}

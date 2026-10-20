@@ -52,6 +52,22 @@ export default function AdminPage() {
     });
     const [showPassword, setShowPassword] = useState(false);
 
+    // Working hours export: one month, default = previous month
+    const [exportMonth, setExportMonth] = useState(() => {
+        const d = new Date();
+        d.setDate(1);
+        d.setMonth(d.getMonth() - 1);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    });
+
+    const handleExport = () => {
+        const [year, month] = exportMonth.split("-").map(Number);
+        const lastDay = new Date(year, month, 0).getDate();
+        const from = `${exportMonth}-01`;
+        const to = `${exportMonth}-${String(lastDay).padStart(2, "0")}`;
+        window.location.href = `/api/admin/workhours-export?from=${from}&to=${to}`;
+    };
+
     const fetchUsers = async () => {
         try {
             const res = await fetch("/api/admin/users");
@@ -221,7 +237,20 @@ export default function AdminPage() {
                             Manage users and their permissions for each module.
                         </p>
                     </div>
-                    <div className="mt-4 sm:ml-16 sm:mt-0 sm:flex-none">
+                    <div className="mt-4 sm:ml-16 sm:mt-0 sm:flex-none flex items-center gap-2">
+                        <input
+                            type="month"
+                            value={exportMonth}
+                            onChange={(e) => setExportMonth(e.target.value)}
+                            className="rounded-md border-gray-300 shadow-sm p-2 text-sm bg-white dark:bg-gray-700 dark:text-white border"
+                        />
+                        <button
+                            onClick={handleExport}
+                            disabled={!exportMonth}
+                            className="block rounded-md bg-green-600 px-3 py-2 text-center text-sm font-semibold text-white shadow-sm hover:bg-green-500 disabled:opacity-50"
+                        >
+                            Export u Excel
+                        </button>
                         <button
                             onClick={openCreateModal}
                             className="block rounded-md bg-indigo-600 px-3 py-2 text-center text-sm font-semibold text-white shadow-sm hover:bg-indigo-500"
